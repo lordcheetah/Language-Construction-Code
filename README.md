@@ -78,10 +78,12 @@ core-case simplification), subject/absolutive agreement, intra-NP modifier order
 adpositional phrases, and — added since the first pass — **clause-level sentence types**:
 negation (a verbal marker or a negator particle), polar (yes/no) questions (a clause-
 initial/final particle or intonation), and imperatives (subject dropped, 2nd person),
-with the strategy harmonically tied to word order. Still to build: relative clauses,
-content (wh-) questions, verb-second, pro-drop, object agreement and differential object
-marking, free-word articles, coordination, and ditransitives. Oblique phrases are still
-placed clause-finally rather than by a positional parameter.
+with the strategy harmonically tied to word order, and **relative clauses** (a gap
+strategy with the head's role omitted; postnominal relatives take a relativizer particle,
+prenominal ones are participial; placement follows the `relative` parameter). Still to
+build: content (wh-) questions, verb-second, pro-drop, object agreement and differential
+object marking, free-word articles, coordination, and ditransitives. Oblique phrases are
+still placed clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

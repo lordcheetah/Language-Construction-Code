@@ -21,7 +21,9 @@ from conlang.syntax.parameters import (
     SyntaxParameters,
     derive_correlates,
 )
-from conlang.syntax.structure import Lexeme, NounPhrase, Clause, AdpositionalPhrase
+from conlang.syntax.structure import (
+    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Role,
+)
 from conlang.syntax.linearizer import Linearizer
 from conlang.syntax.generator import random_syntax
 
@@ -128,7 +130,8 @@ def test_adjective_placement_follows_parameter():
 # --- Sentence types: negation, questions, imperative --------------------------------
 NEG = lex("n a", "particle", "not")
 QPART = lex("k a", "particle", "Q")
-_PARTICLES = {"neg": NEG, "q": QPART}
+RELPART = lex("r a", "particle", "REL")
+_PARTICLES = {"neg": NEG, "q": QPART, "rel": RELPART}
 
 
 def _lin(system=None, **param_kw):
@@ -204,6 +207,51 @@ def test_imperative_drops_the_subject_and_is_second_person():
     assert len(sent.words) == 1                       # subject dropped, just the verb
     assert sent.words[0].ipa == "tau"                 # see + 2nd-person suffix
     assert "2" in sent.words[0].gloss
+
+
+# --- Relative clauses ---------------------------------------------------------------
+def test_postnominal_subject_gap_takes_a_relativizer():
+    # "woman [REL __ sees bird]" — postnominal: gap + relativizer; embedded subject omitted.
+    np = NounPhrase(WOMAN, relative=RelativeClause(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)), Role.SUBJECT))
+    toks = [t.ipa for t in _lin(relative=Side.AFTER)._noun_phrase(np, "nom")]
+    assert toks == ["mi", "ra", "ta", "pon"]  # head, REL, see, bird.ACC
+
+
+def test_postnominal_object_gap():
+    np = NounPhrase(BIRD, relative=RelativeClause(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)), Role.OBJECT))
+    toks = [t.ipa for t in _lin(relative=Side.AFTER)._noun_phrase(np, "nom")]
+    assert toks == ["po", "ra", "mi", "ta"]  # head, REL, woman, see (object gapped)
+
+
+def test_prenominal_relative_is_participial_no_relativizer():
+    # Prenominal RCs are participial cross-linguistically: no relativizer.
+    np = NounPhrase(WOMAN, relative=RelativeClause(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)), Role.SUBJECT))
+    toks = [t.ipa for t in _lin(relative=Side.BEFORE)._noun_phrase(np, "nom")]
+    assert toks == ["ta", "pon", "mi"]   # embedded (see bird) then head; no "ra"
+    assert "ra" not in toks
+
+
+def test_embedded_verb_agrees_with_a_plural_head():
+    # The load-bearing claim: the embedded verb agrees with the gapped head's number.
+    embedded = Clause(NounPhrase(WOMAN, number="pl"), SEE, NounPhrase(BIRD))
+    np = NounPhrase(WOMAN, number="pl", relative=RelativeClause(embedded, Role.SUBJECT))
+    toks = [t.ipa for t in _lin(relative=Side.AFTER)._noun_phrase(np, "nom")]
+    assert "tau" in toks  # see + plural agreement (-u), controlled by the plural head
+
+
+def test_relative_clause_can_be_negated():
+    embedded = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), negated=True)
+    np = NounPhrase(WOMAN, relative=RelativeClause(embedded, Role.SUBJECT))
+    toks = [t.ipa for t in
+            _lin(relative=Side.AFTER, negation=Negation.PARTICLE_AFTER_VERB)._noun_phrase(np, "nom")]
+    assert "na" in toks  # the embedded clause's negator surfaces
+
+
+def test_postnominal_without_relativizer_is_gap_only():
+    lin = Linearizer(_params(relative=Side.AFTER), _system())  # no particles supplied
+    np = NounPhrase(WOMAN, relative=RelativeClause(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)), Role.SUBJECT))
+    toks = [t.ipa for t in lin._noun_phrase(np, "nom")]
+    assert toks == ["mi", "ta", "pon"]  # head + embedded, no relativizer
 
 
 # --- Graceful when the language marks little ----------------------------------------

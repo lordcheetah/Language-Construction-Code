@@ -41,7 +41,8 @@ from conlang.writing.system import WritingSystem
 # v2: morphology gained inflection classes (changes RNG consumption and lexicon output).
 # v3: clause-level sentence types added negator/question particles to the lexicon.
 # v4: a numeral system is rolled per language.
-GENERATOR_VERSION = 4
+# v5: a relativizer particle was added to the lexicon.
+GENERATOR_VERSION = 5
 
 
 @dataclass
@@ -169,7 +170,7 @@ class Language:
     def _particles(self) -> dict:
         """The language's grammatical particles (negator, yes/no marker) as Lexemes."""
         out = {}
-        for key, gloss in (("neg", "not"), ("q", "Q")):
+        for key, gloss in (("neg", "not"), ("q", "Q"), ("rel", "REL")):
             entry = self.lexicon.get(gloss)
             if entry is not None:
                 out[key] = Lexeme(entry.form, "particle", gloss, entry.inflection_class)

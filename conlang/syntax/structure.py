@@ -43,6 +43,7 @@ class NounPhrase:
     number: str = "sg"
     definiteness: str | None = None  # "def" / "indef" / None (unmarked)
     genitive: "NounPhrase | None" = None  # a possessor noun phrase
+    relative: "RelativeClause | None" = None  # a modifying relative clause
 
     @property
     def gloss(self) -> str:
@@ -58,6 +59,8 @@ class NounPhrase:
             parts[-1] = parts[-1] + "s"
         if self.genitive is not None:
             parts.append(f"of-{self.genitive.head.gloss}")
+        if self.relative is not None:
+            parts.append(f"[that {self.relative.english()}]")
         return " ".join(parts)
 
 
@@ -88,3 +91,26 @@ class Clause:
     @property
     def is_imperative(self) -> bool:
         return self.mood == "imperative"
+
+
+@dataclass
+class RelativeClause:
+    """A clause modifying a noun, where the head fills *role* in the clause (the gap).
+
+    The head noun is stored as that role of ``clause`` (for agreement) but is omitted from
+    the surface — e.g. "the dog [that __ sees the bird]" gaps the embedded subject. By
+    convention the gapped role's noun phrase should be the matrix head (its number drives
+    the embedded verb's agreement); its other features there are unused, since it is not
+    rendered.
+    """
+
+    clause: Clause
+    role: Role  # the head's role in the embedded clause: SUBJECT or OBJECT
+
+    def english(self) -> str:
+        verb = self.clause.verb.gloss
+        if self.role is Role.SUBJECT:  # head is the subject: "that sees the bird"
+            tail = self.clause.object.gloss if self.clause.object is not None else ""
+            return f"{verb} {tail}".strip()
+        # head is the object: "that the woman sees"
+        return f"{self.clause.subject.gloss} {verb}".strip()

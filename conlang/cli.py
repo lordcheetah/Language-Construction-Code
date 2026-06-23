@@ -21,7 +21,9 @@ from conlang.morphology.generator import random_system
 from conlang.morphology.features import FeatureBundle
 from conlang.syntax.generator import random_syntax
 from conlang.syntax.linearizer import Linearizer
-from conlang.syntax.structure import Lexeme, NounPhrase, Clause, AdpositionalPhrase
+from conlang.syntax.structure import (
+    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Role,
+)
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Etymology
 from conlang.writing.generator import build_writing_system
@@ -220,8 +222,8 @@ def cmd_syntax(args) -> int:
     iverbs = _build_lexicon(gen, rng, _IVERB_GLOSSES, "verb")
     adjs = _build_lexicon(gen, rng, _ADJ_GLOSSES, "adjective")
     adps = _build_lexicon(gen, rng, _ADP_GLOSSES, "adposition")
-    particle_lex = _build_lexicon(gen, rng, ["not", "Q"], "particle")
-    particles = {"neg": particle_lex["not"], "q": particle_lex["Q"]}
+    particle_lex = _build_lexicon(gen, rng, ["not", "Q", "REL"], "particle")
+    particles = {"neg": particle_lex["not"], "q": particle_lex["Q"], "rel": particle_lex["REL"]}
     lin = Linearizer(params, morphology, romanizer, particles=particles)
 
     print("Syntax parameters:")
@@ -259,6 +261,18 @@ def cmd_syntax(args) -> int:
         ),
         Clause(NounPhrase(nouns["child"]), tverbs["carry"], NounPhrase(nouns["stone"]),
                mood="imperative"),
+        # A relative clause: "the dog [that sees a bird] sleeps" (head is the rel subject).
+        Clause(
+            NounPhrase(
+                nouns["dog"], definiteness="def",
+                relative=RelativeClause(
+                    Clause(NounPhrase(nouns["dog"]), tverbs["see"],
+                           NounPhrase(nouns["bird"], definiteness="indef")),
+                    Role.SUBJECT,
+                ),
+            ),
+            iverbs["sleep"],
+        ),
     ]
 
     print("\nSample sentences:")

@@ -32,7 +32,9 @@ from conlang.morphology.generator import MorphologySystem
 from conlang.syntax.parameters import (
     SyntaxParameters, Side, Adposition, Alignment, Negation, PolarQuestion,
 )
-from conlang.syntax.structure import Clause, NounPhrase, AdpositionalPhrase, Lexeme, Role
+from conlang.syntax.structure import (
+    Clause, NounPhrase, AdpositionalPhrase, RelativeClause, Lexeme, Role,
+)
 
 
 def _display_width(text: str) -> int:
@@ -95,16 +97,20 @@ class Linearizer:
 
     # --- Public API ------------------------------------------------------------------
     def linearize(self, clause: Clause) -> Sentence:
+        words = self._core_tokens(clause)
+        words = self._mark_polar_question(clause, words)
+        return Sentence(tuple(words))
+
+    def _core_tokens(self, clause: Clause, omit: Role | None = None) -> list[GlossedWord]:
+        """The ordered S/V/O (+ obliques) tokens of a clause, optionally omitting one role
+        (used to leave a gap when the clause is relativized)."""
         transitive = clause.is_transitive
-        constituents: dict[str, list[GlossedWord]] = {
-            "V": self._verb_group(clause),
-        }
-        # An imperative drops its (addressee) subject.
-        if not clause.is_imperative:
+        constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
+        if not clause.is_imperative and omit is not Role.SUBJECT:
             constituents["S"] = self._noun_phrase(
                 clause.subject, self._core_case(Role.SUBJECT, transitive)
             )
-        if transitive:
+        if transitive and omit is not Role.OBJECT:
             constituents["O"] = self._noun_phrase(
                 clause.object, self._core_case(Role.OBJECT, transitive)
             )
@@ -117,8 +123,7 @@ class Linearizer:
         # adposition order does follow the language's pre/postposition parameter.
         for pp in clause.obliques:
             words.extend(self._adpositional_phrase(pp))
-        words = self._mark_polar_question(clause, words)
-        return Sentence(tuple(words))
+        return words
 
     # --- Case / alignment ------------------------------------------------------------
     def _core_case(self, role: Role, transitive: bool) -> str:
@@ -156,7 +161,23 @@ class Linearizer:
             # cross-linguistic stacking — because it is applied after the adjective.
             gen = self._noun_phrase(np.genitive, "gen")
             tokens = _place(self.params.genitive, gen, tokens)
+        if np.relative is not None:
+            tokens = _place(self.params.relative, self._relative_clause(np.relative), tokens)
         return tokens
+
+    def _relative_clause(self, rc: RelativeClause) -> list[GlossedWord]:
+        """The embedded clause with the head's role left as a gap.
+
+        A postnominal relative takes a relativizer (gap + complementizer, like English
+        "that"); a prenominal one is participial cross-linguistically (Japanese, Turkish)
+        and takes none.
+        """
+        inner = self._core_tokens(rc.clause, omit=rc.role)
+        if self.params.relative is Side.AFTER:
+            rel = self._particle("rel", "REL")
+            if rel is not None:
+                return [rel, *inner]
+        return inner
 
     def _adpositional_phrase(self, pp: AdpositionalPhrase) -> list[GlossedWord]:
         inner = self._noun_phrase(pp.np, "nom")  # oblique NP left in its base/unmarked form
