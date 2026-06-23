@@ -22,6 +22,8 @@ from conlang.morphology.features import FeatureBundle
 from conlang.syntax.generator import random_syntax
 from conlang.syntax.linearizer import Linearizer
 from conlang.syntax.structure import Lexeme, NounPhrase, Clause, AdpositionalPhrase
+from conlang.lexicon.generator import build_lexicon
+from conlang.lexicon.lexicon import Etymology
 
 # Small English gloss banks so generated sentences can be read interlinearly.
 _NOUN_GLOSSES = ["dog", "woman", "stone", "river", "bird", "child", "fire", "tree"]
@@ -233,6 +235,38 @@ def cmd_syntax(args) -> int:
     return 0
 
 
+def cmd_lexicon(args) -> int:
+    rng = random.Random(args.seed)
+    args.random = not args.inventory
+    inv, phono = _build_phonology(args, rng)
+    romanizer = Romanizer()
+    sandhi = RuleSet.parse(_DEMO_RULES) if args.sandhi else None
+    morphology = random_system(phono, rng, romanizer=romanizer, sandhi=sandhi)
+    # Compound order follows the language's head-directionality (head-final unless VO).
+    params = random_syntax(rng)
+    lexicon = build_lexicon(
+        phono, rng, romanizer=romanizer, morphology=morphology,
+        head_final=not params.basic_order.is_vo,
+    )
+
+    print(inv.summary())
+    print(f"\nLexicon: {len(lexicon)} words across {len(lexicon.by_field())} semantic fields\n")
+    print(lexicon.glossary())
+
+    # Highlight the non-trivial etymologies the generator produced.
+    for label, etymology in (
+        ("Colexified (shared words)", Etymology.COLEXIFIED),
+        ("Derived", Etymology.DERIVED),
+        ("Compounds", Etymology.COMPOUND),
+    ):
+        items = lexicon.of_etymology(etymology)
+        if items:
+            print(f"\n{label}:")
+            for e in items:
+                print(f"  {e.gloss:<12} {e.roman} /{e.ipa}/   [{e.note}]")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -289,6 +323,16 @@ def build_parser() -> argparse.ArgumentParser:
     y.add_argument("--sandhi", action="store_true", help="apply demo sound changes at boundaries")
     y.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     y.set_defaults(func=cmd_syntax)
+
+    x = sub.add_parser(
+        "lexicon",
+        help="generate a dictionary organized by semantic field, with etymologies",
+    )
+    x.add_argument("--inventory", help="explicit IPA inventory (else random)")
+    x.add_argument("--templates", help="comma-separated syllable templates")
+    x.add_argument("--sandhi", action="store_true", help="apply demo sound changes at boundaries")
+    x.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    x.set_defaults(func=cmd_lexicon)
     return parser
 
 

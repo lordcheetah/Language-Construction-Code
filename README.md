@@ -26,7 +26,7 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 | 2. Sound change   | `conlang.soundchange` — SCA-style proto → daughter evolution    | **done** |
 | 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | **done** |
 | 4. Syntax         | `conlang.syntax` — word order, alignment, glossed sentences     | **done** |
-| 5. Lexicon        | `conlang.lexicon` — vocabulary & semantic fields                | planned |
+| 5. Lexicon        | `conlang.lexicon` — vocabulary, semantic fields, etymology      | **done** |
 | 6. Orthography    | `conlang.writing` — romanization, glyph/pictogram generation    | planned |
 
 ### Capstone applications (after the engine stages)
@@ -66,6 +66,14 @@ questions, verb-second, pro-drop, object agreement and differential object marki
 free-word articles, coordination, and ditransitives. Oblique phrases are currently placed
 clause-finally rather than by a positional parameter.
 
+### Deferred (Stage 5 "advanced" backlog)
+
+The lexicon builds a semantic-field dictionary with colexification, derivation, and
+compounding, sized by Zipf's law of abbreviation. Still to add: richer kinship-system
+structure, numeral base systems (built compositionally past five), antonym pairs sharing
+morphology, polysemy networks (chains, not just binary colexification), suppletion in
+basic vocabulary, semantic shift tied to sound change, and loanword strata / register.
+
 ## How this is built
 
 Development uses a **plan → execute → review** loop with Claude subagents: an
@@ -89,6 +97,9 @@ python -m conlang morphology --seed 5 --sandhi   # apply sound changes at bounda
 
 # Roll word order + alignment and build glossed sample sentences
 python -m conlang syntax --seed 8
+
+# Generate a dictionary by semantic field, with colexification/derivation/compounds
+python -m conlang lexicon --seed 8
 ```
 
 ## Layout
@@ -115,6 +126,10 @@ conlang/
     structure.py     # Lexeme, NounPhrase, AdpositionalPhrase, Clause
     linearizer.py    # case by alignment, agreement, ordering -> glossed sentence
     generator.py     # roll plausible syntax parameters
+  lexicon/
+    concepts.py      # semantic-field concept inventory + colexification/derivation/compounds
+    lexicon.py       # LexicalEntry (etymology) + Lexicon container (lookups, glossary)
+    generator.py     # coin roots (Zipf length), colexify, derive, compound
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```
