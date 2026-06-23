@@ -33,10 +33,12 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 
 These sit on top of the whole engine and ship last:
 
+- **Text-to-speech** *(done)* — `conlang.speech`: a pure-Python, dependency-free formant
+  synthesizer. It reads the same phonological features the engine uses (vowel
+  height/backness → formants, consonant manner → buzz/noise/burst, voicing → glottal
+  source) and writes a 16-bit WAV. Robotic but real, offline, and deterministic.
 - **Tutorial** — an interactive, guided walkthrough that teaches a user to *create* a
   language, driving the engine stage by stage.
-- **Text-to-speech** — pronounce generated words from their IPA. Offline-first via
-  `espeak-ng` (which accepts IPA input directly), in keeping with the project philosophy.
 - **Teaching app** *(the big one)* — learn a *generated* conlang: lessons, flashcards,
   and spaced repetition built from the language's phonology, lexicon, and grammar.
 
@@ -117,6 +119,10 @@ python -m conlang lexicon --seed 8
 # Generate a native script as SVG (featural glyphs) -> out/chart.svg, out/word.svg
 python -m conlang writing --seed 8
 python -m conlang writing --seed 3 --type abugida
+
+# Speak a word with the built-in formant synthesizer -> a WAV file
+python -m conlang speak --ipa "p a t a k a" --out out/word.wav
+python -m conlang speak --seed 42 --gloss water --out out/water.wav
 ```
 
 ## Layout
@@ -152,6 +158,9 @@ conlang/
     featural.py      # deterministic featural glyph from a segment's features
     system.py        # WritingSystem (alphabet/abjad/abugida/syllabary); word + chart SVG
     generator.py     # roll a script type + per-language style
+  speech/
+    phones.py        # map a segment's features -> an acoustic plan (formants/noise/bursts)
+    synth.py         # formant synthesizer: glottal source, resonators, noise -> WAV
   language.py        # the Language aggregate: all six stages in one object + generate(seed)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite

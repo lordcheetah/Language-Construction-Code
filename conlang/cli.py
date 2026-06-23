@@ -27,6 +27,8 @@ from conlang.lexicon.lexicon import Etymology
 from conlang.writing.generator import build_writing_system
 from conlang.writing.system import WritingSystemType
 from conlang.language import Language
+from conlang.phonology import data as _phon_data
+from conlang.speech.synth import Synthesizer, Voice
 
 # Sample sentences for the `generate` showcase (glosses must exist in the lexicon).
 _SHOWCASE_SENTENCES = [
@@ -367,6 +369,45 @@ def cmd_generate(args) -> int:
     return 0
 
 
+def cmd_speak(args) -> int:
+    import os
+
+    rng = random.Random(args.seed)
+    voice = Voice(f0=args.f0, rate=args.rate)
+    synth = Synthesizer(voice, rng)
+
+    if args.ipa:
+        try:
+            segments = [_phon_data.BY_IPA[s] for s in args.ipa.split()]
+        except KeyError as exc:
+            raise SystemExit(f"speak: unknown IPA symbol {exc}")
+        label = f"/{args.ipa.replace(' ', '')}/"
+    else:
+        lang = Language.generate(args.seed)
+        if args.gloss:
+            entry = lang.lexicon.get(args.gloss)
+            if entry is None:
+                raise SystemExit(f"speak: no word for {args.gloss!r} in the lexicon")
+            segments = list(entry.form)
+            label = f"{args.gloss}: {entry.roman} /{entry.ipa}/"
+        else:
+            word = lang.word(rng, min_syllables=2, max_syllables=3)
+            segments = [s for syl in word.syllables for s in syl]
+            label = f"{word.roman} /{word.ipa}/"
+
+    samples = synth.synthesize(segments)
+    out = args.out
+    parent = os.path.dirname(out)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    synth.write_wav(out, samples)
+
+    seconds = len(samples) / voice.sample_rate
+    print(f"Spoke {label}")
+    print(f"  {seconds:.2f}s @ {voice.sample_rate} Hz, F0 {voice.f0:.0f} Hz -> {out}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -459,6 +500,18 @@ def build_parser() -> argparse.ArgumentParser:
     g.add_argument("--out", help="also write the native script (chart.svg, word.svg) to this dir")
     g.add_argument("--seed", type=int, default=None, help="seed (a language is fully determined by it)")
     g.set_defaults(func=cmd_generate)
+
+    sp = sub.add_parser(
+        "speak",
+        help="synthesize a word to a WAV with the built-in formant synthesizer",
+    )
+    sp.add_argument("--ipa", help='speak an explicit IPA string, e.g. "p a t a"')
+    sp.add_argument("--gloss", help="speak the language's word for this concept (e.g. water)")
+    sp.add_argument("--out", default="out/speech.wav", help="output WAV path")
+    sp.add_argument("--f0", type=float, default=120.0, help="fundamental pitch in Hz (default 120)")
+    sp.add_argument("--rate", type=float, default=1.0, help="speech speed multiplier (default 1.0)")
+    sp.add_argument("--seed", type=int, default=None, help="seed for the language and noise")
+    sp.set_defaults(func=cmd_speak)
     return parser
 
 

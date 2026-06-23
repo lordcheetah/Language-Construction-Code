@@ -147,6 +147,15 @@ class Language:
         clause = Clause(subj, self._lexeme(verb, expect_pos="verb"), obj_np, tense=tense)
         return Linearizer(self.syntax, self.morphology, self.romanizer).linearize(clause)
 
+    def speak(self, word: Word, *, voice=None, rng: random.Random | None = None) -> list[float]:
+        """Synthesize a word to audio samples (in [-1, 1]).
+
+        Lazily imports the speech capstone so it stays an optional layer.
+        """
+        from conlang.speech.synth import Synthesizer
+
+        return Synthesizer(voice, rng).synthesize_word(word)
+
     # --- Diachrony (Stage 2 integration) ---------------------------------------------
     def evolve(self, rules: RuleSet | list[str] | str) -> dict[str, tuple[str, str]]:
         """Run every dictionary word through a sound change; return daughter forms.
