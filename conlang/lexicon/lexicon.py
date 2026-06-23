@@ -29,6 +29,7 @@ class LexicalEntry:
     roman: str
     etymology: Etymology = Etymology.ROOT
     note: str = ""  # e.g. "= tree", "from hunt (AGENT)", "water+fall"
+    inflection_class: str = "1"  # which declension/conjugation this word belongs to
 
     @property
     def ipa(self) -> str:

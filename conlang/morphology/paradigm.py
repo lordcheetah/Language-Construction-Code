@@ -8,6 +8,14 @@ the affixes that realize them, and a morphological :class:`Typology`:
 - **Fusional** — a single affix realizes the whole combination of category values at
   once; the paradigm maps each full :class:`FeatureBundle` to one affix.
 
+A word class may have several **inflection classes** (declensions for nouns, conjugations
+for verbs): each realizes the *same* marked categories with a *different* affix set, and
+every lexeme belongs to one. The paradigm's own affix fields are inflection class ``"1"``
+(the default); additional classes live in ``extra_classes`` keyed ``"2"``, ``"3"``, … and
+:meth:`inflect` selects one per word. Simplifications worth noting: classes differ only in
+their *marked* cells (the citation form is shared), and class membership is not yet tied to
+gender (real declensions often correlate with it).
+
 Optionally a Stage 2 :class:`~conlang.soundchange.ruleset.RuleSet` is applied after
 affixation as **sandhi**, smoothing the morpheme boundaries.
 
@@ -38,29 +46,61 @@ class SandhiLike(Protocol):
     def apply(self, segments: Sequence[Segment]) -> Sequence[Segment]: ...
 
 
+DEFAULT_CLASS = "1"
+
+
+@dataclass
+class InflectionClass:
+    """One declension/conjugation: an affix set realizing the marked categories."""
+
+    agglutinative_affixes: dict[tuple[str, str], Affix] = field(default_factory=dict)
+    fusional_affixes: dict[FeatureBundle, Affix] = field(default_factory=dict)
+
+
 @dataclass
 class Paradigm:
     word_class: WordClass
     typology: Typology
     marked: tuple[GrammaticalCategory, ...]
-    # Agglutinative: (category_name, value) -> Affix. Fusional: FeatureBundle -> Affix.
+    # The default inflection class ("1"): agglutinative (category, value) -> Affix,
+    # fusional FeatureBundle -> Affix.
     agglutinative_affixes: dict[tuple[str, str], Affix] = field(default_factory=dict)
     fusional_affixes: dict[FeatureBundle, Affix] = field(default_factory=dict)
+    # Additional inflection classes keyed "2", "3", … (same categories, other affixes).
+    extra_classes: dict[str, InflectionClass] = field(default_factory=dict)
     romanizer: Romanizer = field(default_factory=Romanizer)
     sandhi: SandhiLike | None = None  # an optional RuleSet applied after affixation
 
+    def class_ids(self) -> list[str]:
+        return [DEFAULT_CLASS, *sorted(self.extra_classes)]
+
+    def _affixes(self, inflection_class: str | None):
+        ic = self.extra_classes.get(inflection_class) if inflection_class else None
+        if ic is not None:
+            return ic.agglutinative_affixes, ic.fusional_affixes
+        return self.agglutinative_affixes, self.fusional_affixes
+
     # --- Inflection ------------------------------------------------------------------
-    def inflect(self, root: Sequence[Segment], bundle: FeatureBundle) -> list[Segment]:
-        """Inflect *root* for *bundle*; missing marked categories default to their base."""
+    def inflect(
+        self,
+        root: Sequence[Segment],
+        bundle: FeatureBundle,
+        inflection_class: str | None = None,
+    ) -> list[Segment]:
+        """Inflect *root* for *bundle* using *inflection_class* (default class if None).
+
+        Missing marked categories default to their base value.
+        """
         full = self._complete(bundle)
+        agglutinative, fusional = self._affixes(inflection_class)
         if self.typology is Typology.FUSIONAL:
-            form = self._inflect_fusional(root, full)
+            form = self._inflect_fusional(root, full, fusional)
         else:  # agglutinative and isolating both stack affixes (isolating just has few)
-            form = self._inflect_agglutinative(root, full)
+            form = self._inflect_agglutinative(root, full, agglutinative)
         return self._apply_sandhi(form)
 
     def _inflect_agglutinative(
-        self, root: Sequence[Segment], full: FeatureBundle
+        self, root: Sequence[Segment], full: FeatureBundle, affixes: dict
     ) -> list[Segment]:
         prefixes: list[Affix] = []
         suffixes: list[Affix] = []
@@ -68,7 +108,7 @@ class Paradigm:
             value = full.get(cat.name)
             if value is None or value == cat.base:
                 continue  # base value -> zero affix
-            affix = self.agglutinative_affixes.get((cat.name, value))
+            affix = affixes.get((cat.name, value))
             if affix is None or affix.is_zero:
                 continue
             (prefixes if affix.position is Position.PREFIX else suffixes).append(affix)
@@ -81,9 +121,9 @@ class Paradigm:
         return out
 
     def _inflect_fusional(
-        self, root: Sequence[Segment], full: FeatureBundle
+        self, root: Sequence[Segment], full: FeatureBundle, affixes: dict
     ) -> list[Segment]:
-        affix = self.fusional_affixes.get(full)
+        affix = affixes.get(full)
         if affix is None or affix.is_zero:
             return list(root)
         return affix.attach(root)
@@ -115,11 +155,13 @@ class Paradigm:
             for combo in itertools.product(*value_lists)
         ]
 
-    def table(self, root: Sequence[Segment]) -> list[tuple[FeatureBundle, list[Segment], str]]:
-        """Full paradigm for *root*: (bundle, inflected segments, romanization)."""
+    def table(
+        self, root: Sequence[Segment], inflection_class: str | None = None
+    ) -> list[tuple[FeatureBundle, list[Segment], str]]:
+        """Full paradigm for *root* in one inflection class: (bundle, segments, roman)."""
         rows = []
         for bundle in self.enumerate_bundles():
-            seg = self.inflect(root, bundle)
+            seg = self.inflect(root, bundle, inflection_class)
             rows.append((bundle, seg, self.romanize(seg)))
         return rows
 

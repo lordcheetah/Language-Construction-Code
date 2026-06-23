@@ -47,6 +47,24 @@ def test_compound_order_follows_generated_syntax():
         assert waterfall.ipa == expected
 
 
+def test_generated_language_uses_multiple_declensions():
+    # Find a seed whose nouns have >1 inflection class and confirm words are spread across
+    # them, reproducibly.
+    for seed in range(20):
+        lang = Language.generate(seed)
+        noun_classes = lang.morphology.inflection_classes("noun")
+        if len(noun_classes) > 1:
+            used = {e.inflection_class for e in lang.lexicon.entries.values()
+                    if e.concept.pos == "noun"}
+            assert used <= set(noun_classes) and len(used) >= 2
+            # the same seed reproduces the same class assignment
+            again = Language.generate(seed)
+            assert {g: e.inflection_class for g, e in lang.lexicon.entries.items()} == \
+                   {g: e.inflection_class for g, e in again.lexicon.entries.items()}
+            return
+    raise AssertionError("no multi-declension language found in 20 seeds (unexpected)")
+
+
 def test_make_sentence_runs_the_whole_stack():
     lang = Language.generate(8)
     sent = lang.make_sentence(

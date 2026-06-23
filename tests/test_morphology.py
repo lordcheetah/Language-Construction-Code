@@ -22,7 +22,7 @@ from conlang.morphology.features import (
     Typology,
 )
 from conlang.morphology.affix import Affix, Position
-from conlang.morphology.paradigm import Paradigm, DerivationRule
+from conlang.morphology.paradigm import Paradigm, DerivationRule, InflectionClass
 from conlang.morphology.generator import random_system
 
 
@@ -100,6 +100,49 @@ def test_agglutinative_stacks_two_affixes():
     # number is the first marked category, so it sits closer to the root: kat + i + a
     out = par.inflect(root, FeatureBundle.of(number="pl", gender="fem"))
     assert ipa(out) == "katia"
+
+
+# --- Inflection classes (declensions) -----------------------------------------------
+def test_inflection_classes_use_different_affixes():
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,))
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    par.extra_classes["2"] = InflectionClass()
+    par.extra_classes["2"].agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    root = segs("k a t")
+    assert par.class_ids() == ["1", "2"]
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "1")) == "kats"
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "2")) == "kati"
+    # default (None) and the base value behave as before
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kats"
+    assert ipa(par.inflect(root, FeatureBundle.of(number="sg"), "2")) == "kat"
+
+
+def test_unknown_inflection_class_falls_back_to_default():
+    par = _plural_paradigm()  # single class
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of(number="pl"), "99")) == "kats"
+
+
+def test_random_system_inflection_classes_are_well_formed():
+    phono, rng = _random_phonotactics(9)
+    system = random_system(phono, rng, typology=Typology.FUSIONAL)
+    for name, par in system.paradigms.items():
+        cids = par.class_ids()
+        assert cids[0] == "1" and len(cids) == len(set(cids))
+        assert system.inflection_classes(name) == cids
+        # every declared extra class actually carries affixes (when the class marks anything)
+        if par.marked:
+            for cid in cids[1:]:
+                assert par.extra_classes[cid].fusional_affixes
+
+
+def test_isolating_has_a_single_inflection_class():
+    phono, rng = _random_phonotactics(2)
+    system = random_system(phono, rng, typology=Typology.ISOLATING)
+    assert all(par.class_ids() == ["1"] for par in system.paradigms.values())
 
 
 # --- Fusional inflection ------------------------------------------------------------

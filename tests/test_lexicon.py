@@ -58,6 +58,21 @@ def test_relational_tables_reference_known_concepts():
 
 
 # --- Build basics -------------------------------------------------------------------
+def test_entries_are_assigned_valid_inflection_classes():
+    # Each word's declension must be one the morphology actually defines for its POS.
+    phono, rng = _phonotactics(9)
+    romanizer = Romanizer()
+    from conlang.morphology.generator import random_system
+
+    system = random_system(phono, rng, romanizer=romanizer, typology=Typology.FUSIONAL)
+    lex = build_lexicon(phono, rng, romanizer=romanizer, morphology=system)
+    for entry in lex.entries.values():
+        valid = system.inflection_classes(entry.concept.pos)
+        assert entry.inflection_class in valid
+    # at least one POS has multiple classes here, so some non-"1" assignment should occur
+    assert any(e.inflection_class != "1" for e in lex.entries.values())
+
+
 def test_every_concept_gets_a_nonempty_entry():
     phono, rng = _phonotactics(3)
     lex = build_lexicon(phono, rng)

@@ -29,6 +29,7 @@ class Lexeme:
     root: tuple[Segment, ...]
     word_class: str
     gloss: str
+    inflection_class: str | None = None  # which declension/conjugation this word takes
 
     @property
     def ipa(self) -> str:

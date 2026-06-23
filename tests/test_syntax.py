@@ -194,6 +194,27 @@ def test_adposition_placement_follows_parameter():
 
 
 # --- Fusional morphology through the linearizer -------------------------------------
+def test_inflection_class_flows_through_to_the_surface():
+    # Two nouns differing only in declension must surface differently in a sentence.
+    from conlang.morphology.paradigm import InflectionClass
+
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (NUMBER,))
+    noun.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    noun.extra_classes["2"] = InflectionClass()
+    noun.extra_classes["2"].agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    lin = Linearizer(_params(), MorphologySystem(Typology.AGGLUTINATIVE, {"noun": noun}))
+
+    woman1 = Lexeme(WOMAN.root, "noun", "woman", "1")
+    woman2 = Lexeme(WOMAN.root, "noun", "woman", "2")
+    s1 = lin.linearize(Clause(NounPhrase(woman1, number="pl"), SEE))
+    s2 = lin.linearize(Clause(NounPhrase(woman2, number="pl"), SEE))
+    assert forms(s1)[0] == "mis" and forms(s2)[0] == "mii"  # different declensions
+
+
 def test_fusional_morphology_linearizes():
     noun = Paradigm(WORD_CLASSES["noun"], Typology.FUSIONAL, (CASE,))
     b = FeatureBundle.of(case="acc")

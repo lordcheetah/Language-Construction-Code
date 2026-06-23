@@ -175,7 +175,7 @@ class Linearizer:
         if paradigm is None:
             segments: Sequence[Segment] = lexeme.root
         else:
-            segments = paradigm.inflect(lexeme.root, bundle)
+            segments = paradigm.inflect(lexeme.root, bundle, lexeme.inflection_class)
         roman = self.romanizer.romanize([list(segments)])
         ipa = "".join(s.ipa for s in segments)
         return GlossedWord(roman, ipa, gloss)

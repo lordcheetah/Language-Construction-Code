@@ -33,7 +33,7 @@ from conlang.morphology.features import (
     Typology,
 )
 from conlang.morphology.affix import Affix, Position
-from conlang.morphology.paradigm import Paradigm, DerivationRule
+from conlang.morphology.paradigm import Paradigm, DerivationRule, InflectionClass
 
 # Derivation templates: (from_class, to_class, gloss).
 _DERIVATION_TEMPLATES = [
@@ -51,8 +51,12 @@ class MorphologySystem:
     paradigms: dict[str, Paradigm]
     derivations: list[DerivationRule] = field(default_factory=list)
 
-    def inflect(self, word_class: str, root, bundle: FeatureBundle):
-        return self.paradigms[word_class].inflect(root, bundle)
+    def inflect(self, word_class: str, root, bundle: FeatureBundle, inflection_class=None):
+        return self.paradigms[word_class].inflect(root, bundle, inflection_class)
+
+    def inflection_classes(self, word_class: str) -> list[str]:
+        par = self.paradigms.get(word_class)
+        return par.class_ids() if par is not None else ["1"]
 
     def derive(self, rule: DerivationRule, root, bundle: FeatureBundle | None = None):
         """Apply a derivation, then inflect the derived stem with its target class.
@@ -76,7 +80,9 @@ class MorphologySystem:
                 if self.typology is Typology.FUSIONAL
                 else len(par.agglutinative_affixes)
             )
-            lines.append(f"  {name}: marks {marked}  [{n} affixes]")
+            classes = len(par.class_ids())
+            cls_note = f", {classes} inflection classes" if classes > 1 else ""
+            lines.append(f"  {name}: marks {marked}  [{n} affixes{cls_note}]")
         if self.derivations:
             der = ", ".join(f"{d.gloss}({d.from_class}->{d.to_class})" for d in self.derivations)
             lines.append(f"  derivation: {der}")
@@ -142,6 +148,53 @@ def _build_paradigm(
     if not marked:
         return par
 
+    n_classes = _choose_class_count(rng, typology)
+    # The first inflection class fills the paradigm's own affix fields ("1"). Each extra
+    # class is a *perturbation* of it — most endings are shared (syncretism across
+    # declensions), a minority differ — so the classes look related, as real declensions do
+    # rather than like unrelated languages.
+    base_aggl, base_fus = _build_affix_set(rng, typology, marked, dominant, inventory)
+    par.agglutinative_affixes, par.fusional_affixes = base_aggl, base_fus
+    for k in range(2, n_classes + 1):
+        aggl, fus = _perturb_affix_set(
+            rng, base_aggl, base_fus, typology, dominant, inventory
+        )
+        par.extra_classes[str(k)] = InflectionClass(aggl, fus)
+    return par
+
+
+def _perturb_affix_set(rng, base_aggl, base_fus, typology, dominant, inventory):
+    """A new inflection class derived from a base: keep most cells, regenerate a minority.
+
+    At least one cell is forced to differ so the class is genuinely distinct from the base.
+    """
+    base = base_fus if typology is Typology.FUSIONAL else base_aggl
+    items = list(base.items())
+    forced = rng.randrange(len(items)) if items else -1
+    out: dict = {}
+    for idx, (key, affix) in enumerate(items):
+        if idx == forced or rng.random() < 0.45:  # this declension differs here
+            form = _random_affix_form(rng, inventory)
+            out[key] = Affix(form, dominant, affix.marks, gloss=affix.gloss)
+        else:
+            out[key] = affix  # shared with the base declension
+    return (({}, out) if typology is Typology.FUSIONAL else (out, {}))
+
+
+def _choose_class_count(rng: random.Random, typology: Typology) -> int:
+    """How many inflection classes a word class has. Fusional languages have declensions;
+    agglutinative ones are usually regular; isolating ones have a single (trivial) class."""
+    if typology is Typology.ISOLATING:
+        return 1
+    if typology is Typology.AGGLUTINATIVE:
+        return rng.choices([1, 2], weights=[0.8, 0.2], k=1)[0]
+    return rng.choices([1, 2, 3, 4], weights=[0.2, 0.35, 0.3, 0.15], k=1)[0]
+
+
+def _build_affix_set(rng, typology, marked, dominant, inventory):
+    """Build one inflection class's affixes: (agglutinative dict, fusional dict)."""
+    agglutinative: dict = {}
+    fusional: dict = {}
     if typology is Typology.FUSIONAL:
         names = [c.name for c in marked]
         for combo in itertools.product(*[c.values for c in marked]):
@@ -149,16 +202,16 @@ def _build_paradigm(
             if all(val == cat.base for cat, val in zip(marked, combo)):
                 continue  # all-base combination is the zero (citation) form
             form = _random_affix_form(rng, inventory)
-            par.fusional_affixes[bundle] = Affix(form, dominant, bundle, gloss=str(bundle))
+            fusional[bundle] = Affix(form, dominant, bundle, gloss=str(bundle))
     else:  # agglutinative / isolating: one affix per marked (non-base) value
         for cat in marked:
             for value in cat.marked_values:
                 form = _random_affix_form(rng, inventory)
                 marks = FeatureBundle.of(**{cat.name: value})
-                par.agglutinative_affixes[(cat.name, value)] = Affix(
+                agglutinative[(cat.name, value)] = Affix(
                     form, dominant, marks, gloss=value.upper()
                 )
-    return par
+    return agglutinative, fusional
 
 
 def _build_derivations(rng, dominant, inventory) -> list[DerivationRule]:

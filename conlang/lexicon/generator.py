@@ -75,12 +75,17 @@ def build_lexicon(
     product_glosses = {prod for _, prod, *_ in DERIVATIONS} | {prod for prod, _ in COMPOUNDS}
     lex = Lexicon()
 
+    def cls(pos: str) -> str:
+        return _assign_class(rng, pos, morphology)
+
     # 1. Primary roots.
     for concept in CONCEPTS:
         if concept.gloss in product_glosses:
             continue
         form, roman = coin(concept.basicness)
-        lex.entries[concept.gloss] = LexicalEntry(concept, form, roman, Etymology.ROOT)
+        lex.entries[concept.gloss] = LexicalEntry(
+            concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+        )
 
     # 2. Colexification.
     for source, target, prob in COLEXIFICATION:
@@ -90,6 +95,7 @@ def build_lexicon(
             lex.entries[target] = LexicalEntry(
                 tgt_entry.concept, src_entry.form, src_entry.roman,
                 Etymology.COLEXIFIED, note=f"= {source}",
+                inflection_class=src_entry.inflection_class,  # shares form -> shares class
             )
 
     # 3. Derivation (falls back to a fresh root if the language lacks the affix).
@@ -105,11 +111,14 @@ def build_lexicon(
             used_ipa.add("".join(s.ipa for s in form))
             used_roman.add(roman)
             lex.entries[prod] = LexicalEntry(
-                concept, form, roman, Etymology.DERIVED, note=f"from {base} ({relation})"
+                concept, form, roman, Etymology.DERIVED,
+                note=f"from {base} ({relation})", inflection_class=cls(concept.pos),
             )
         else:
             form, roman = coin(concept.basicness)
-            lex.entries[prod] = LexicalEntry(concept, form, roman, Etymology.ROOT)
+            lex.entries[prod] = LexicalEntry(
+                concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+            )
 
     # 4. Compounding (falls back to a fresh root if a part is missing).
     # COMPOUNDS list parts as (modifier, head). A head-final language keeps that order;
@@ -124,13 +133,28 @@ def build_lexicon(
             used_ipa.add("".join(s.ipa for s in form))
             used_roman.add(roman)
             lex.entries[prod] = LexicalEntry(
-                concept, form, roman, Etymology.COMPOUND, note="+".join(ordered)
+                concept, form, roman, Etymology.COMPOUND,
+                note="+".join(ordered), inflection_class=cls(concept.pos),
             )
         else:
             form, roman = coin(concept.basicness)
-            lex.entries[prod] = LexicalEntry(concept, form, roman, Etymology.ROOT)
+            lex.entries[prod] = LexicalEntry(
+                concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+            )
 
     return lex
+
+
+def _assign_class(rng: random.Random, pos: str, morphology) -> str:
+    """Assign a word to one of its part-of-speech's inflection classes (uniform random).
+
+    Consumes no RNG when there is only one class, so languages without declensions keep
+    their previous lexicon output.
+    """
+    if morphology is None:
+        return "1"
+    classes = morphology.inflection_classes(pos)
+    return rng.choice(classes) if len(classes) > 1 else "1"
 
 
 def _find_rule(morphology, relation: str, from_pos: str, to_pos: str):

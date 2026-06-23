@@ -164,15 +164,19 @@ def cmd_morphology(args) -> int:
     for class_name, paradigm in system.paradigms.items():
         root_word = gen.word(rng, min_syllables=1, max_syllables=2)
         root = [s for syl in root_word.syllables for s in syl]
-        print(f"\n{class_name.capitalize()} paradigm for {root_word.roman} /{root_word.ipa}/:")
-        rows = paradigm.table(root)
-        shown = rows[: args.max_rows]
-        bw = max((len(str(b)) for b, _, _ in shown), default=0)
-        for bundle, seg, roman in shown:
-            ipa_form = "".join(s.ipa for s in seg)
-            print(f"  {str(bundle):<{bw}}  {roman} /{ipa_form}/")
-        if len(rows) > len(shown):
-            print(f"  ... ({len(rows) - len(shown)} more cells)")
+        cids = paradigm.class_ids()
+        header = f"\n{class_name.capitalize()} paradigm for {root_word.roman} /{root_word.ipa}/"
+        if len(cids) > 1:
+            header += f"  (declensions {' | '.join(cids)})"
+        print(header + ":")
+        bundles = paradigm.enumerate_bundles()
+        shown = bundles[: args.max_rows]
+        bw = max((len(str(b)) for b in shown), default=0)
+        for bundle in shown:
+            forms = [paradigm.romanize(paradigm.inflect(root, bundle, cid)) for cid in cids]
+            print(f"  {str(bundle):<{bw}}  " + "  |  ".join(forms))
+        if len(bundles) > len(shown):
+            print(f"  ... ({len(bundles) - len(shown)} more cells)")
 
     if system.derivations:
         print("\nDerivations (derived stem shown in its citation form):")

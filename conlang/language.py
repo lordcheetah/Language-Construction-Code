@@ -37,7 +37,8 @@ from conlang.writing.system import WritingSystem
 
 # Bumped whenever a change to any stage alters what a given seed produces. Stored in
 # snapshots so a seed can be paired with the generator version that minted it.
-GENERATOR_VERSION = 1
+# v2: morphology gained inflection classes (changes RNG consumption and lexicon output).
+GENERATOR_VERSION = 2
 
 
 @dataclass
@@ -111,7 +112,7 @@ class Language:
             raise ValueError(
                 f"{gloss!r} is a {entry.concept.pos}, but a {expect_pos} is required here"
             )
-        return Lexeme(entry.form, entry.concept.pos, gloss)
+        return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class)
 
     def make_sentence(
         self,
@@ -215,6 +216,7 @@ class Language:
                     "field": e.concept.field,
                     "etymology": e.etymology.value,
                     "note": e.note,
+                    "inflection_class": e.inflection_class,
                 }
                 for gloss, e in self.lexicon.entries.items()
             },
