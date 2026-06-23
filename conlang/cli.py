@@ -19,6 +19,16 @@ from conlang.phonology.wordgen import WordGenerator, Romanizer
 from conlang.soundchange.ruleset import RuleSet
 from conlang.morphology.generator import random_system
 from conlang.morphology.features import FeatureBundle
+from conlang.syntax.generator import random_syntax
+from conlang.syntax.linearizer import Linearizer
+from conlang.syntax.structure import Lexeme, NounPhrase, Clause, AdpositionalPhrase
+
+# Small English gloss banks so generated sentences can be read interlinearly.
+_NOUN_GLOSSES = ["dog", "woman", "stone", "river", "bird", "child", "fire", "tree"]
+_TVERB_GLOSSES = ["see", "eat", "carry", "find", "hear"]
+_IVERB_GLOSSES = ["sleep", "run", "arrive"]
+_ADJ_GLOSSES = ["big", "red", "old", "cold"]
+_ADP_GLOSSES = ["near"]
 
 # An illustrative ruleset used by `soundchange --demo`: intervocalic voicing, then final
 # devoicing (a classic feeding/bleeding pair), plus intervocalic /h/-loss.
@@ -154,6 +164,75 @@ def cmd_morphology(args) -> int:
     return 0
 
 
+def _build_lexicon(gen, rng, glosses, word_class) -> dict:
+    lex = {}
+    for gloss in glosses:
+        word = gen.word(rng, min_syllables=1, max_syllables=2)
+        root = tuple(s for syl in word.syllables for s in syl)
+        lex[gloss] = Lexeme(root, word_class, gloss)
+    return lex
+
+
+def cmd_syntax(args) -> int:
+    rng = random.Random(args.seed)
+    args.random = not args.inventory
+    inv, phono = _build_phonology(args, rng)
+    romanizer = Romanizer()
+    gen = WordGenerator(phono, romanizer)
+
+    sandhi = RuleSet.parse(_DEMO_RULES) if args.sandhi else None
+    morphology = random_system(phono, rng, romanizer=romanizer, sandhi=sandhi)
+    params = random_syntax(rng)
+    lin = Linearizer(params, morphology, romanizer)
+
+    nouns = _build_lexicon(gen, rng, _NOUN_GLOSSES, "noun")
+    tverbs = _build_lexicon(gen, rng, _TVERB_GLOSSES, "verb")
+    iverbs = _build_lexicon(gen, rng, _IVERB_GLOSSES, "verb")
+    adjs = _build_lexicon(gen, rng, _ADJ_GLOSSES, "adjective")
+    adps = _build_lexicon(gen, rng, _ADP_GLOSSES, "adposition")
+
+    print("Syntax parameters:")
+    print(params.describe())
+    print(f"\nMorphology: {morphology.typology.value}")
+    for name, par in morphology.paradigms.items():
+        marked = ", ".join(c.name for c in par.marked) or "(none)"
+        print(f"  {name} marks: {marked}")
+
+    clauses = [
+        Clause(NounPhrase(nouns["dog"], definiteness="def"), iverbs["sleep"]),
+        Clause(
+            NounPhrase(nouns["woman"], definiteness="def"),
+            tverbs["see"],
+            NounPhrase(nouns["bird"], definiteness="indef"),
+        ),
+        Clause(
+            NounPhrase(nouns["child"], adjective=adjs["big"], number="pl", definiteness="def"),
+            tverbs["carry"],
+            NounPhrase(nouns["stone"], number="pl"),
+        ),
+        Clause(
+            NounPhrase(nouns["bird"], definiteness="def"),
+            iverbs["sleep"],
+            obliques=[
+                AdpositionalPhrase(adps["near"], NounPhrase(nouns["river"], definiteness="def"), "near")
+            ],
+        ),
+    ]
+
+    print("\nSample sentences:")
+    for clause in clauses:
+        sentence = lin.linearize(clause)
+        english = clause.subject.gloss + " " + clause.verb.gloss
+        if clause.object is not None:
+            english += " " + clause.object.gloss
+        for pp in clause.obliques:
+            english += f" {pp.relation} {pp.np.gloss}"
+        print(f"\n  “{english}”")
+        for line in sentence.interlinear().splitlines():
+            print(f"    {line}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -200,6 +279,16 @@ def build_parser() -> argparse.ArgumentParser:
     m.add_argument("--max-rows", type=int, default=16, help="max paradigm cells to show (default 16)")
     m.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     m.set_defaults(func=cmd_morphology)
+
+    y = sub.add_parser(
+        "syntax",
+        help="roll word-order + alignment parameters and build glossed sample sentences",
+    )
+    y.add_argument("--inventory", help="explicit IPA inventory (else random)")
+    y.add_argument("--templates", help="comma-separated syllable templates")
+    y.add_argument("--sandhi", action="store_true", help="apply demo sound changes at boundaries")
+    y.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    y.set_defaults(func=cmd_syntax)
     return parser
 
 

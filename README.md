@@ -25,7 +25,7 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 | 1. Phonology      | `conlang.phonology` — inventory, phonotactics, word generation | **done** |
 | 2. Sound change   | `conlang.soundchange` — SCA-style proto → daughter evolution    | **done** |
 | 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | **done** |
-| 4. Syntax         | `conlang.syntax` — word order, grammar rules                    | planned |
+| 4. Syntax         | `conlang.syntax` — word order, alignment, glossed sentences     | **done** |
 | 5. Lexicon        | `conlang.lexicon` — vocabulary & semantic fields                | planned |
 | 6. Orthography    | `conlang.writing` — romanization, glyph/pictogram generation    | planned |
 
@@ -57,6 +57,15 @@ allomorphy, true analytic-particle isolating morphology (free grammatical words 
 than affixes), extra number values (dual/paucal) and clusivity, zero-derivation
 (conversion), and derivation stacking.
 
+### Deferred (Stage 4 "advanced" backlog)
+
+Syntax models constituent order, harmonic correlates, alignment (with a two-way
+core-case simplification), subject/absolutive agreement, intra-NP modifier order, and
+adpositional phrases. Still to build: relative clauses, clause-level negation and
+questions, verb-second, pro-drop, object agreement and differential object marking,
+free-word articles, coordination, and ditransitives. Oblique phrases are currently placed
+clause-finally rather than by a positional parameter.
+
 ## How this is built
 
 Development uses a **plan → execute → review** loop with Claude subagents: an
@@ -77,6 +86,9 @@ python -m conlang soundchange --seed 3 --rule "[voiceless plosive] > [+voiced] /
 # Roll a morphological system and show inflection paradigms
 python -m conlang morphology --seed 5
 python -m conlang morphology --seed 5 --sandhi   # apply sound changes at boundaries
+
+# Roll word order + alignment and build glossed sample sentences
+python -m conlang syntax --seed 8
 ```
 
 ## Layout
@@ -98,6 +110,11 @@ conlang/
     affix.py         # Affix: form + position + marked features; attach to a stem
     paradigm.py      # agglutinative + fusional inflection, paradigm tables, derivation
     generator.py     # roll a plausible morphological system (typology, affixes, sandhi)
+  syntax/
+    parameters.py    # word order, head-directionality correlates, alignment
+    structure.py     # Lexeme, NounPhrase, AdpositionalPhrase, Clause
+    linearizer.py    # case by alignment, agreement, ordering -> glossed sentence
+    generator.py     # roll plausible syntax parameters
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```
