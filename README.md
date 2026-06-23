@@ -49,11 +49,12 @@ These sit on top of the whole engine and ship last:
 
 ### Deferred (Stage 2 "advanced" backlog)
 
-The sound-change engine handles substitution, feature-class transforms, deletion, and
-ordered (feeding/bleeding) rule application. Still to add when needed: epenthesis /
-insertion (`0 > V / …`), feature-agreement assimilation (α-features, "assimilate to the
-following place" in one rule), optional / variable-length environment elements (`(C)`,
-wildcards), and multi-segment targets (gemination, metathesis).
+The sound-change engine handles substitution, feature-class transforms, deletion, ordered
+(feeding/bleeding) rule application, and — added since the first pass — **epenthesis**
+(`0 > ə / C_C`), **optional environment elements** (`(C)`), and **feature-agreement
+assimilation** with α-features (`[nasal] > [αplace] / _[αplace plosive]`). Still to add
+when needed: unbounded wildcards (`C*`, "any segment"), and multi-segment targets
+(gemination, metathesis).
 
 ### Deferred (Stage 3 "advanced" backlog)
 

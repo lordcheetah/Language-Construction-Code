@@ -109,6 +109,38 @@ def apply_delta(seg: Segment, delta: str) -> Segment | None:
     return fn(seg)
 
 
+def set_feature(seg: Segment, attr: str, value) -> Segment | None:
+    """Set one feature dimension of *seg* to *value*, resolving to an attested segment.
+
+    Used by feature-agreement rules (e.g. a nasal taking a following stop's place). Returns
+    None when no attested segment has the requested feature combination.
+    """
+    if isinstance(seg, Consonant):
+        if attr not in ("place", "manner", "voicing"):
+            return None
+        feats = {"place": seg.place, "manner": seg.manner, "voicing": seg.voicing}
+        feats[attr] = value
+        return _CONSONANT_BY_FEATURES.get((feats["place"], feats["manner"], feats["voicing"]))
+    if isinstance(seg, Vowel):
+        if attr == "long":
+            return _vowel_with_length(seg, bool(value))
+        if attr not in ("height", "backness", "rounded"):
+            return None
+        feats = {"height": seg.height, "backness": seg.backness, "rounded": seg.rounded}
+        feats[attr] = value
+        return _VOWEL_BY_FEATURES.get((feats["height"], feats["backness"], feats["rounded"], seg.long))
+    return None
+
+
+# Feature dimensions an agreement variable can copy (word -> Segment attribute name).
+DIMENSIONS = {
+    "place": "place", "voicing": "voicing", "voice": "voicing", "manner": "manner",
+    "height": "height", "backness": "backness", "rounded": "rounded", "round": "rounded",
+    "length": "long",
+}
+_DIMENSIONS = DIMENSIONS  # backward-compatible alias
+
+
 # --- Feature classes ----------------------------------------------------------------
 # Vocabulary mapping descriptive words to feature constraints. A constraint is a
 # (field name, set of allowed values); a class matches a segment when every constraint
@@ -157,10 +189,16 @@ _LENGTH = {"long": True, "short": False}
 
 @dataclass(frozen=True)
 class FeatureClass:
-    """A natural class parsed from words like ``voiceless plosive`` or ``long front vowel``."""
+    """A natural class parsed from words like ``voiceless plosive`` or ``long front vowel``.
+
+    A word may also be a *capture*: ``αplace`` (or the ASCII alias ``@place``) does not
+    constrain the segment but binds its place to the variable α, so a later ``[αplace]`` in
+    the replacement can copy it — the mechanism behind feature-agreement assimilation.
+    """
 
     constraints: tuple  # tuple of (field_name, frozenset_of_allowed_values)
     kind: str | None    # "consonant", "vowel", or None
+    captures: tuple = ()  # tuple of (variable, attribute) pairs to bind on a match
 
     @classmethod
     def parse(cls, text: str) -> "FeatureClass":
@@ -168,6 +206,7 @@ class FeatureClass:
         if not words:
             raise ValueError("empty feature class []")
         constraints: dict[str, set] = {}
+        captures: list[tuple[str, str]] = []
         kind: str | None = None
 
         def add(field: str, value):
@@ -179,6 +218,10 @@ class FeatureClass:
 
         for w in words:
             key = w.lower()
+            if key and key[0] in "αβγ@" and key[1:] in _DIMENSIONS:
+                var = "α" if key[0] == "@" else key[0]
+                captures.append((var, _DIMENSIONS[key[1:]]))
+                continue
             if key in _KIND:
                 kind = _KIND[key]
             elif key in _VOICING:
@@ -205,7 +248,9 @@ class FeatureClass:
                 raise ValueError(f"unknown feature word {w!r} in [{text}]")
 
         frozen = tuple((f, frozenset(vs)) for f, vs in constraints.items())
-        return cls(frozen, kind)
+        if not frozen and not kind and not captures:
+            raise ValueError(f"feature class [{text}] constrains nothing")
+        return cls(frozen, kind, tuple(captures))
 
     def matches(self, element: Element) -> bool:
         if not isinstance(element, Segment):
@@ -218,6 +263,17 @@ class FeatureClass:
             if getattr(element, field, None) not in allowed:
                 return False
         return True
+
+    def bindings(self, element: Element) -> dict:
+        """The variable bindings this class captures from *element* (empty if none)."""
+        if not isinstance(element, Segment) or not self.captures:
+            return {}
+        bound = {}
+        for var, attr in self.captures:
+            value = getattr(element, attr, None)
+            if value is not None:
+                bound[var] = value
+        return bound
 
 
 # --- Matchers -----------------------------------------------------------------------

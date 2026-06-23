@@ -2,15 +2,16 @@
 
 The environment uses ``_`` to mark the target's position and may reference boundaries
 (``#``), categories, literals, and feature classes. Either side of ``_`` may be empty
-(unconstrained). Tokens may be space-separated (required for multi-character categories
-or multi-codepoint IPA such as ``t͡ʃ``) or written compactly for single-character tokens
+(unconstrained). Tokens may be space-separated (required for multi-character categories or
+multi-codepoint IPA such as ``t͡ʃ``) or written compactly for single-character tokens
 (``V_V``). Examples::
 
-    p > b / V_V
-    [voiceless plosive] > [+voiced] / V_V
-    [voiced obstruent] > [-voiced] / _#
-    h > 0 / V_V                # 0 (also ∅) deletes
-    n > m / _ [bilabial]
+    p > b / V_V                               # context-sensitive voicing
+    [voiceless plosive] > [+voiced] / V_V     # feature-class transform
+    h > 0 / V_V                               # 0 (also ∅) deletes
+    0 > ə / C_C                               # 0 on the left inserts (epenthesis)
+    [plosive] > 0 / _(C)#                     # (X) is an optional environment element
+    [nasal] > [αplace] / _[αplace plosive]    # place assimilation (α-feature agreement)
 
 A rule applies **simultaneously** across the word: every site is matched against the
 original form, so a change does not feed itself within a single pass (ordering between
@@ -33,6 +34,8 @@ from conlang.soundchange.matcher import (
     BoundaryMatcher,
     FeatureClass,
     apply_delta,
+    set_feature,
+    DIMENSIONS,
 )
 
 _DELETE_TOKENS = {"", "0", "∅", "Ø", "-"}
@@ -47,31 +50,46 @@ _BARE_TO_DELTA = {
 }
 
 
+# --- Environment slots --------------------------------------------------------------
+@dataclass(frozen=True)
+class _Slot:
+    matcher: Matcher
+    optional: bool = False
+
+
 # --- Replacements -------------------------------------------------------------------
 @dataclass(frozen=True)
 class _Literal:
     segment: Segment
 
-    def apply(self, matched: Segment) -> Segment | None:
+    def apply(self, matched, bindings) -> Segment | None:
         return self.segment
 
 
 @dataclass(frozen=True)
 class _Delete:
-    def apply(self, matched: Segment) -> Segment | None:
+    def apply(self, matched, bindings) -> Segment | None:
         return None
 
 
 @dataclass(frozen=True)
-class _Delta:
-    deltas: tuple[str, ...]
+class _FeatureChange:
+    """A sequence of feature operations: deltas (``+voiced``) and agreement assignments."""
 
-    def apply(self, matched: Segment) -> Segment | None:
+    ops: tuple  # tuple of ("delta", str) or ("assign", (variable, attribute))
+
+    def apply(self, matched: Segment, bindings: dict) -> Segment | None:
         seg: Segment | None = matched
-        for d in self.deltas:
+        for kind, payload in self.ops:
             if seg is None:
                 return None
-            seg = apply_delta(seg, d)
+            if kind == "delta":
+                seg = apply_delta(seg, payload)
+            else:  # assign a captured feature (agreement)
+                var, attr = payload
+                if var not in bindings:
+                    return None
+                seg = set_feature(seg, attr, bindings[var])
         return seg
 
 
@@ -79,11 +97,12 @@ class _Delta:
 @dataclass(frozen=True)
 class SoundChange:
     source: str
-    target: Matcher
-    replacement: object  # _Literal | _Delete | _Delta
-    left: tuple[Matcher, ...] = field(default_factory=tuple)
-    right: tuple[Matcher, ...] = field(default_factory=tuple)
-    deletes: bool = False  # True for a deletion replacement (affects output length)
+    target: Matcher | None  # None for an insertion (epenthesis)
+    replacement: object     # _Literal | _Delete | _FeatureChange
+    left: tuple = field(default_factory=tuple)   # tuple of _Slot
+    right: tuple = field(default_factory=tuple)  # tuple of _Slot
+    deletes: bool = False
+    inserts: bool = False
 
     @classmethod
     def parse(cls, text: str, categories: dict[str, CategoryMatcher] | None = None) -> "SoundChange":
@@ -92,10 +111,24 @@ class SoundChange:
             raise ValueError(f"rule missing '>': {text!r}")
         rule_part, _, env_part = text.partition("/")
         target_str, _, repl_str = rule_part.partition(">")
+        target_str, repl_str = target_str.strip(), repl_str.strip()
 
-        target = _parse_token(target_str.strip(), categories, allow_boundary=False)
-        replacement = _parse_replacement(repl_str.strip())
+        replacement = _parse_replacement(repl_str)
         left, right = _parse_environment(env_part, categories)
+
+        inserts = target_str in _DELETE_TOKENS
+        if inserts:
+            if not isinstance(replacement, _Literal):
+                raise ValueError("an insertion (0 > X) must insert a literal segment")
+            if not left and not right:
+                raise ValueError("an insertion (0 > X) needs an environment, e.g. 0 > ə / C_C")
+            target: Matcher | None = None
+        else:
+            target = _parse_token(target_str, categories, allow_boundary=False)
+
+        # Every agreement variable used in the replacement must be captured in the context.
+        _check_bound_variables(replacement, target, left, right)
+
         return cls(
             source=text.strip(),
             target=target,
@@ -103,41 +136,98 @@ class SoundChange:
             left=tuple(left),
             right=tuple(right),
             deletes=isinstance(replacement, _Delete),
+            inserts=inserts,
         )
 
     def apply(self, segments: Sequence[Segment]) -> list[Segment]:
-        """Apply this change to a word (a sequence of segments)."""
         aug: list[Element] = [BOUNDARY, *segments, BOUNDARY]
+        return self._apply_insertion(aug) if self.inserts else self._apply_rewrite(aug)
+
+    def _apply_rewrite(self, aug: list[Element]) -> list[Segment]:
         # Decide every site against the original form (simultaneous application).
-        decisions: dict[int, object] = {}
+        decisions: dict[int, dict] = {}
         for i in range(1, len(aug) - 1):
             if not self.target.matches(aug[i]):
                 continue
-            if not _left_matches(aug, i, self.left):
+            bound = self._match_environment(aug, i + 1, i)
+            if bound is None:
                 continue
-            if not _right_matches(aug, i, self.right):
-                continue
-            decisions[i] = self.replacement
+            bound.update(_bindings(self.target, aug[i]))
+            decisions[i] = bound
 
         out: list[Segment] = []
         for i in range(1, len(aug) - 1):
             seg = aug[i]
             assert isinstance(seg, Segment)
-            repl = decisions.get(i)
-            if repl is None:
+            if i not in decisions:
                 out.append(seg)
                 continue
-            result = repl.apply(seg)
-            if result is None and not isinstance(repl, _Delete):
-                # A feature delta with no attested result: leave the segment unchanged.
-                out.append(seg)
+            result = self.replacement.apply(seg, decisions[i])
+            if result is None and not isinstance(self.replacement, _Delete):
+                out.append(seg)  # a transform with no attested result: leave it unchanged
             elif result is not None:
                 out.append(result)
-            # _Delete (result is None) appends nothing.
         return out
+
+    def _apply_insertion(self, aug: list[Element]) -> list[Segment]:
+        n = len(aug) - 2
+        inserts: dict[int, dict] = {}
+        for g in range(1, len(aug)):  # gap between aug[g-1] and aug[g]
+            bound = self._match_environment(aug, g, g)
+            if bound is not None:
+                inserts[g] = bound
+
+        out: list[Segment] = []
+        for g in range(1, len(aug)):
+            if g in inserts:
+                inserted = self.replacement.apply(None, inserts[g])
+                if inserted is not None:
+                    out.append(inserted)
+            if g <= n:  # aug[g] is a real segment (not the closing boundary)
+                out.append(aug[g])  # type: ignore[arg-type]
+        return out
+
+    def _match_environment(self, aug: list[Element], right_start: int, left_end: int) -> dict | None:
+        """Match both sides; return merged bindings, or None if either side fails.
+
+        ``right_start`` is the first index of the right context; ``left_end`` is one past
+        the last index of the left context (the target index for a rewrite, or the gap
+        index for an insertion).
+
+        Binding precedence (only matters if one variable is captured in more than one
+        place): right context wins over left, and the target wins over both. Capturing the
+        same variable on both sides is unusual; for the common single-capture rule this is
+        moot.
+        """
+        right = _match_side(aug[right_start:], self.right)
+        if right is None:
+            return None
+        left = _match_side(list(reversed(aug[:left_end])), tuple(reversed(self.left)))
+        if left is None:
+            return None
+        return {**left, **right}
 
 
 # --- Parsing helpers ----------------------------------------------------------------
+def _check_bound_variables(replacement, target, left, right) -> None:
+    """Raise if the replacement copies an agreement variable that nothing in the context binds."""
+    if not isinstance(replacement, _FeatureChange):
+        return
+    used = {payload[0] for kind, payload in replacement.ops if kind == "assign"}
+    if not used:
+        return
+    matchers = [s.matcher for s in (*left, *right)]
+    if target is not None:
+        matchers.append(target)
+    bound = {var for m in matchers for var, _attr in getattr(m, "captures", ())}
+    missing = used - bound
+    if missing:
+        raise ValueError(
+            f"replacement uses unbound agreement variable(s) {sorted(missing)}; "
+            "capture them in the environment, e.g. _[αplace plosive]"
+        )
+
+
 def _parse_token(token: str, categories, *, allow_boundary: bool = True) -> Matcher:
     if token == "#":
         if not allow_boundary:
@@ -156,78 +246,119 @@ def _parse_replacement(token: str):
     if token in _DELETE_TOKENS:
         return _Delete()
     if token.startswith("[") and token.endswith("]"):
-        words = token[1:-1].replace(",", " ").split()
-        deltas: list[str] = []
-        for w in words:
-            if w in _BARE_TO_DELTA:
-                deltas.append(_BARE_TO_DELTA[w])
+        ops = []
+        for w in token[1:-1].replace(",", " ").split():
+            key = w.lower()
+            if key and key[0] in "αβγ@" and key[1:] in DIMENSIONS:
+                var = "α" if key[0] == "@" else key[0]
+                ops.append(("assign", (var, DIMENSIONS[key[1:]])))
+            elif w in _BARE_TO_DELTA:
+                ops.append(("delta", _BARE_TO_DELTA[w]))
             elif w[:1] in "+-":
-                deltas.append(w)
+                ops.append(("delta", w))
             else:
-                raise ValueError(f"replacement feature {w!r} must be a delta (+/-) or a known feature")
-        if not deltas:
-            raise ValueError(f"empty replacement []")
-        return _Delta(tuple(deltas))
+                raise ValueError(f"replacement feature {w!r} must be a delta (+/-), a known feature, or an αfeature")
+        if not ops:
+            raise ValueError("empty replacement []")
+        return _FeatureChange(tuple(ops))
     if token in data.BY_IPA:
         return _Literal(data.BY_IPA[token])
     raise ValueError(f"unknown replacement {token!r}")
 
 
-def _parse_environment(env_part: str, categories) -> tuple[list[Matcher], list[Matcher]]:
+def _parse_environment(env_part: str, categories) -> tuple[list[_Slot], list[_Slot]]:
     env = env_part.strip()
     if not env:
         return [], []
     if "_" not in env:
         raise ValueError(f"environment missing '_': {env_part!r}")
     left_str, _, right_str = env.partition("_")
-    left = [_parse_token(t, categories) for t in _tokenize(left_str, categories)]
-    right = [_parse_token(t, categories) for t in _tokenize(right_str, categories)]
+    left = [_parse_slot(t, categories) for t in _tokenize(left_str, categories)]
+    right = [_parse_slot(t, categories) for t in _tokenize(right_str, categories)]
     return left, right
 
 
+def _parse_slot(token: str, categories) -> _Slot:
+    if token.startswith("(") and token.endswith(")"):
+        return _Slot(_parse_token(token[1:-1].strip(), categories), optional=True)
+    return _Slot(_parse_token(token, categories), optional=False)
+
+
 def _tokenize(side: str, categories: dict) -> list[str]:
+    """Split an environment side into tokens.
+
+    Bracketed feature classes ``[...]`` and parenthesised optional groups ``(...)`` are
+    atomic even when they contain spaces (e.g. ``[αplace plosive]``). Outside groups, spaces
+    separate tokens; a run with no spaces is split by longest-match against known tokens, so
+    compact forms (``VC``) and multi-codepoint IPA (``t͡ʃ``) both work.
+    """
     side = side.strip()
     if not side:
         return []
-    if any(ch.isspace() for ch in side):
-        return side.split()
-    # Compact mode: greedily match the longest known token at each position so that
-    # multi-codepoint IPA (e.g. the affricate /t͡ʃ/, which carries a tie bar) and
-    # multi-character category names stay intact instead of being split per codepoint.
     known = sorted({*categories, *data.BY_IPA, "#"}, key=len, reverse=True)
     tokens: list[str] = []
     i = 0
     while i < len(side):
-        if side[i] == "[":
-            j = side.index("]", i)
+        ch = side[i]
+        if ch.isspace():
+            i += 1
+            continue
+        if ch in "([":
+            close = ")" if ch == "(" else "]"
+            j = side.find(close, i)
+            if j == -1:
+                raise ValueError(f"unbalanced {ch!r} in environment: {side!r}")
             tokens.append(side[i : j + 1])
             i = j + 1
             continue
+        j = i
+        while j < len(side) and not side[j].isspace() and side[j] not in "([":
+            j += 1
+        tokens.extend(_split_run(side[i:j], known))
+        i = j
+    return tokens
+
+
+def _split_run(run: str, known: list[str]) -> list[str]:
+    tokens: list[str] = []
+    i = 0
+    while i < len(run):
         for tok in known:
-            if tok and side.startswith(tok, i):
+            if tok and run.startswith(tok, i):
                 tokens.append(tok)
                 i += len(tok)
                 break
         else:
-            # Unknown character: emit it so _parse_token raises a clear error.
-            tokens.append(side[i])
+            tokens.append(run[i])  # unknown char: let _parse_token raise a clear error
             i += 1
     return tokens
 
 
-def _left_matches(aug: list[Element], i: int, left: tuple[Matcher, ...]) -> bool:
-    if not left:
-        return True
-    start = i - len(left)
-    if start < 0:
-        return False
-    return all(m.matches(aug[start + k]) for k, m in enumerate(left))
+def _bindings(matcher, element) -> dict:
+    fn = getattr(matcher, "bindings", None)
+    return fn(element) if fn is not None else {}
 
 
-def _right_matches(aug: list[Element], i: int, right: tuple[Matcher, ...]) -> bool:
-    if not right:
-        return True
-    end = i + 1 + len(right)
-    if end > len(aug):
-        return False
-    return all(m.matches(aug[i + 1 + k]) for k, m in enumerate(right))
+def _match_side(elements: list, slots: tuple) -> dict | None:
+    """Match *slots* against a prefix of *elements*; return bindings or None.
+
+    Required slots consume one element; optional slots consume zero or one (backtracking).
+    Elements beyond the matched slots are ignored. Returns the bindings captured by any
+    feature-class slots along the successful path.
+    """
+    return _seq(elements, slots, 0, 0)
+
+
+def _seq(elements: list, slots: tuple, ei: int, si: int) -> dict | None:
+    if si == len(slots):
+        return {}
+    slot = slots[si]
+    if ei < len(elements) and slot.matcher.matches(elements[ei]):
+        rest = _seq(elements, slots, ei + 1, si + 1)
+        if rest is not None:
+            return {**_bindings(slot.matcher, elements[ei]), **rest}
+    if slot.optional:
+        rest = _seq(elements, slots, ei, si + 1)
+        if rest is not None:
+            return rest
+    return None

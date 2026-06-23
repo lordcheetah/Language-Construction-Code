@@ -125,6 +125,96 @@ def test_impossible_feature_delta_leaves_segment_unchanged():
     assert ipa(voicing.apply(segs("a q a"))) == "aɢa"
 
 
+# --- Epenthesis (insertion) ---------------------------------------------------------
+def test_epenthesis_inserts_between_consonants():
+    rule = SoundChange.parse("0 > ə / C_C", RuleSet().categories)
+    assert ipa(rule.apply(segs("a k t a"))) == "akəta"   # break up the /kt/ cluster
+    assert ipa(rule.apply(segs("a t a"))) == "ata"        # no cluster -> no insertion
+
+
+def test_word_initial_and_final_epenthesis():
+    initial = SoundChange.parse("0 > a / #_C", RuleSet().categories)
+    assert ipa(initial.apply(segs("s t a"))) == "asta"
+    final = SoundChange.parse("0 > a / C_#", RuleSet().categories)
+    assert ipa(final.apply(segs("t a k"))) == "taka"
+
+
+def test_insertion_must_be_a_literal():
+    with pytest.raises(ValueError):
+        SoundChange.parse("0 > [+voiced] / V_V", RuleSet().categories)
+
+
+def test_insertion_requires_an_environment():
+    with pytest.raises(ValueError):
+        SoundChange.parse("0 > ə /", RuleSet().categories)  # would insert in every gap
+
+
+def test_unbalanced_bracket_gives_a_clear_error():
+    with pytest.raises(ValueError, match="unbalanced"):
+        SoundChange.parse("p > b / _[voiced", RuleSet().categories)
+
+
+# --- Optional environment elements --------------------------------------------------
+def test_optional_environment_element():
+    # Delete a plosive that is word-final, optionally across one more consonant.
+    rule = SoundChange.parse("[plosive] > 0 / _(C)#", RuleSet().categories)
+    assert ipa(rule.apply(segs("a t"))) == "a"      # t_#  (optional C skipped)
+    assert ipa(rule.apply(segs("a t k"))) == "a"     # both: k_# and t_(k)#
+    assert ipa(rule.apply(segs("a t a"))) == "ata"   # not before a boundary -> unchanged
+
+
+def test_optional_element_matches_zero_or_one():
+    rule = SoundChange.parse("a > e / _(C)i", RuleSet().categories)
+    assert ipa(rule.apply(segs("a i"))) == "ei"      # optional C skipped: a_i
+    assert ipa(rule.apply(segs("a t i"))) == "eti"   # optional C present: a_(t)i
+    assert ipa(rule.apply(segs("a t t i"))) == "atti"  # two consonants: no match
+
+
+# --- Feature-agreement (alpha) assimilation -----------------------------------------
+def test_nasal_place_assimilation():
+    rule = SoundChange.parse("[nasal] > [αplace] / _[αplace plosive]", RuleSet().categories)
+    assert ipa(rule.apply(segs("a n p a"))) == "ampa"   # n -> m before bilabial /p/
+    assert ipa(rule.apply(segs("a n k a"))) == "aŋka"   # n -> ŋ before velar /k/
+    assert ipa(rule.apply(segs("a m k a"))) == "aŋka"   # m -> ŋ before velar /k/
+    assert ipa(rule.apply(segs("a n t a"))) == "anta"   # already alveolar -> unchanged
+
+
+def test_agreement_ascii_alias_and_voicing():
+    # @ is an ASCII alias for α; agreement also works on voicing.
+    rule = SoundChange.parse("s > [@voicing] / _[@voicing plosive]", RuleSet().categories)
+    assert ipa(rule.apply(segs("a s b a"))) == "azba"   # s voices before voiced /b/
+    assert ipa(rule.apply(segs("a s p a"))) == "aspa"   # stays voiceless before /p/
+
+
+def test_agreement_left_context():
+    # Capture from the left context instead of the right.
+    rule = SoundChange.parse("[nasal] > [αplace] / [αplace plosive]_", RuleSet().categories)
+    assert ipa(rule.apply(segs("a p n a"))) == "apma"   # n -> m after bilabial /p/
+
+
+def test_unbound_agreement_variable_is_rejected():
+    with pytest.raises(ValueError):
+        SoundChange.parse("[nasal] > [αplace] / V_V", RuleSet().categories)  # α never captured
+
+
+def test_unattested_agreement_target_is_left_unchanged():
+    # No attested nasal at the glottal place, so assimilation to /h/ can't resolve.
+    rule = SoundChange.parse("[nasal] > [αplace] / _[αplace fricative]", RuleSet().categories)
+    assert ipa(rule.apply(segs("a n h a"))) == "anha"
+
+
+def test_agreement_composes_with_an_optional_element():
+    rule = SoundChange.parse("[nasal] > [αplace] / _(s)[αplace plosive]", RuleSet().categories)
+    assert ipa(rule.apply(segs("a n p a"))) == "ampa"      # optional /s/ skipped
+    assert ipa(rule.apply(segs("a n s p a"))) == "amspa"   # optional /s/ present
+
+
+def test_optional_on_the_left_context():
+    rule = SoundChange.parse("a > e / i(C)_", RuleSet().categories)
+    assert ipa(rule.apply(segs("i a"))) == "ie"     # optional C skipped: i_a
+    assert ipa(rule.apply(segs("i t a"))) == "ite"  # optional C present: i(t)_a
+
+
 # --- Rulesets: ordering, categories, derivation -------------------------------------
 def test_ruleset_rule_ordering_feeds():
     # Voicing feeds nothing here, but order matters: voicing then devoicing.
