@@ -19,7 +19,7 @@ from enum import Enum
 from typing import Sequence
 
 from conlang.phonology.features import Segment
-from conlang.writing.glyph import Glyph, Style, Line, slant_transform
+from conlang.writing.glyph import Glyph, Style, Line, Path, Circle, slant_transform
 
 
 class WritingSystemType(Enum):
@@ -48,6 +48,7 @@ class WritingSystem:
     diacritics: dict[str, Glyph]            # ipa -> vowel diacritic
     style: Style = field(default_factory=Style)
     inherent_vowel: str | None = None       # ipa of the abugida's inherent vowel
+    digit_glyphs: dict[int, Glyph] = field(default_factory=dict)  # digit value -> glyph
 
     # --- Rendering a word ------------------------------------------------------------
     def render_segments(self, segments: Sequence[Segment]) -> list[tuple[str, Glyph]]:
@@ -107,6 +108,30 @@ class WritingSystem:
             f'height="{height}" viewBox="0 0 {width} 100">{"".join(groups)}</svg>'
         )
 
+    # --- Numbers ---------------------------------------------------------------------
+    def number_svg(self, n: int, base: int, size: int = 80) -> str:
+        """Render a non-negative integer in positional notation with the digit glyphs.
+
+        This is place-value notation and is independent of how the language's spelled-out
+        numeral *words* group (those have their own multiplier/unit order).
+        """
+        if base > len(self.digit_glyphs):
+            raise ValueError(
+                f"base {base} exceeds the available digit glyphs ({len(self.digit_glyphs)})"
+            )
+        digits = _to_base_digits(n, base)
+        cell = 100
+        groups = []
+        for i, d in enumerate(digits):
+            glyph = self.digit_glyphs.get(d, Glyph())
+            inner = glyph.to_svg_group(self.style, slant_transform(self.style.slant))
+            groups.append(f'<g transform="translate({i * cell} 0)">{inner}</g>')
+        width = len(digits) * cell
+        return (
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{len(digits) * size}" '
+            f'height="{size}" viewBox="0 0 {width} 100">{"".join(groups)}</svg>'
+        )
+
     # --- Rendering the chart ---------------------------------------------------------
     def chart_cells(self) -> list[tuple[str, Glyph]]:
         if self.type is WritingSystemType.ABJAD:
@@ -163,3 +188,44 @@ class WritingSystem:
 
 def _esc(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# --- Numeral glyphs (Maya-style bars and dots) --------------------------------------
+def maya_digit(v: int) -> Glyph:
+    """A digit glyph in the bars-and-dots style: each bar is five, each dot is one.
+
+    Attested (Maya, and similar to Babylonian grouping), it scales cleanly to any base up
+    to ~20 and stays visually coherent: e.g. 7 is one bar with two dots, 13 is two bars
+    with three dots. (A stylization: true Maya stacks place-values vertically; here digits
+    advance in a horizontal row like the scripts.)
+    """
+    if v == 0:  # a shell-like lens, as Maya wrote zero
+        return Glyph((Path("M 28 55 Q 50 44 72 55 Q 50 66 28 55 Z"), Line(38, 55, 62, 55)))
+
+    bars, dots = divmod(v, 5)
+    strokes: list = []
+    y = 86.0
+    for _ in range(bars):
+        strokes.append(Line(22, y, 78, y))
+        y -= 13
+    dot_y = (y - 13) if bars else 40
+    for i in range(dots):
+        x = 50 + (i - (dots - 1) / 2) * 16
+        strokes.append(Circle(x, dot_y, 5, filled=True))
+    return Glyph(tuple(strokes))
+
+
+def build_digit_glyphs(max_digit: int = 19) -> dict[int, Glyph]:
+    return {v: maya_digit(v) for v in range(max_digit + 1)}
+
+
+def _to_base_digits(n: int, base: int) -> list[int]:
+    if n < 0:
+        raise ValueError("cannot render a negative number")
+    if n == 0:
+        return [0]
+    digits = []
+    while n:
+        digits.append(n % base)
+        n //= base
+    return digits[::-1]

@@ -99,10 +99,11 @@ shift tied to sound change, and loanword strata / register.
 
 ### Deferred (Stage 6 "advanced" backlog)
 
-The writing system generates featural SVG glyphs for four script types. Still to add:
-numeral and punctuation glyphs, ligatures/positional forms, explicit cluster stacking
-(beyond the coda virama), connecting/cursive strokes, and right-to-left or vertical
-layout direction. True logographic/pictographic scripts are a separate, larger effort.
+The writing system generates featural SVG glyphs for four script types, plus **numeral
+glyphs** (Maya-style bars-and-dots digits rendered in positional notation). Still to add:
+punctuation glyphs, ligatures/positional forms, explicit cluster stacking (beyond the coda
+virama), connecting/cursive strokes, and right-to-left or vertical layout direction. True
+logographic/pictographic scripts are a separate, larger effort.
 
 ## How this is built
 

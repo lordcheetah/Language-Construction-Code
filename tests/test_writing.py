@@ -8,11 +8,15 @@ all SVG output is well-formed XML.
 import random
 import xml.etree.ElementTree as ET
 
+import pytest
+
 from conlang.phonology import data
 from conlang.phonology.inventory import Inventory
 from conlang.writing.glyph import Glyph, Style, Line, Circle
 from conlang.writing.featural import consonant_glyph, vowel_glyph, vowel_diacritic
-from conlang.writing.system import WritingSystem, WritingSystemType
+from conlang.writing.system import (
+    WritingSystem, WritingSystemType, maya_digit, build_digit_glyphs, _to_base_digits,
+)
 from conlang.writing.generator import build_writing_system
 
 
@@ -150,6 +154,56 @@ def test_chart_cell_count_matches_type():
     assert len(abjad.chart_cells()) == 4
     syll = _system(WritingSystemType.SYLLABARY, inv)
     assert len(syll.chart_cells()) == 4 * 3  # consonants x vowels
+
+
+# --- Numeral glyphs -----------------------------------------------------------------
+def test_base_decomposition():
+    assert _to_base_digits(0, 10) == [0]
+    assert _to_base_digits(42, 10) == [4, 2]
+    assert _to_base_digits(100, 20) == [5, 0]   # 5*20 + 0
+    assert _to_base_digits(7, 5) == [1, 2]        # 1*5 + 2
+
+
+def test_maya_digits_encode_bars_and_dots():
+    # value v -> (v // 5) bars (Lines) + (v % 5) dots (filled Circles); 0 is special.
+    def counts(v):
+        g = maya_digit(v)
+        bars = sum(1 for s in g.strokes if isinstance(s, Line))
+        dots = sum(1 for s in g.strokes if isinstance(s, Circle) and s.filled)
+        return bars, dots
+    assert counts(3) == (0, 3)
+    assert counts(5) == (1, 0)
+    assert counts(7) == (1, 2)
+    assert counts(19) == (3, 4)
+    assert maya_digit(0) != maya_digit(5)   # zero is a distinct shape
+    # every digit 0..19 is a distinct glyph
+    assert len({maya_digit(v).svg() for v in range(20)}) == 20
+
+
+def test_number_svg_is_well_formed_and_uses_the_right_digit_count():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    assert len(ws.digit_glyphs) == 20
+    for n, base, ndigits in ((0, 10, 1), (42, 10, 2), (100, 20, 2), (7, 5, 2)):
+        svg = ws.number_svg(n, base)
+        root = ET.fromstring(svg)
+        # one outer <g> (a positioned digit cell) per base digit
+        digit_cells = [c for c in root if c.tag.endswith("g")]
+        assert len(digit_cells) == ndigits
+
+
+def test_zero_in_a_nonfinal_position_renders_the_shell():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    root = ET.fromstring(ws.number_svg(100, 20))  # 100 base 20 -> digits [5, 0]
+    cells = [c for c in root if c.tag.endswith("g")]
+    assert len(cells) == 2
+    second = ET.tostring(cells[1], encoding="unicode")  # the digit 0
+    assert "path" in second.lower()  # the zero shell (a Path), not a blank cell
+
+
+def test_number_svg_rejects_a_base_beyond_the_digit_glyphs():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    with pytest.raises(ValueError):
+        ws.number_svg(5, base=36)  # only 0..19 digit glyphs exist
 
 
 # --- Generator ----------------------------------------------------------------------

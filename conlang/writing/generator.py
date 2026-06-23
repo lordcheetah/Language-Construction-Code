@@ -15,7 +15,7 @@ from conlang.phonology.features import Height
 from conlang.phonology.inventory import Inventory
 from conlang.writing.glyph import Style
 from conlang.writing.featural import consonant_glyph, vowel_glyph, vowel_diacritic
-from conlang.writing.system import WritingSystem, WritingSystemType
+from conlang.writing.system import WritingSystem, WritingSystemType, build_digit_glyphs
 
 # Approximate prevalence of script types among the world's writing systems.
 _TYPE_WEIGHTS: dict[WritingSystemType, float] = {
@@ -64,4 +64,5 @@ def build_writing_system(
         diacritics=diacritics,
         style=style,
         inherent_vowel=inherent,
+        digit_glyphs=build_digit_glyphs(),  # bars-and-dots digits (pure geometry, no rng)
     )
