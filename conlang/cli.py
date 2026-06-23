@@ -15,8 +15,10 @@ import sys
 
 from conlang.phonology.inventory import Inventory
 from conlang.phonology.phonotactics import Phonotactics
-from conlang.phonology.wordgen import WordGenerator
+from conlang.phonology.wordgen import WordGenerator, Romanizer
 from conlang.soundchange.ruleset import RuleSet
+from conlang.morphology.generator import random_system
+from conlang.morphology.features import FeatureBundle
 
 # An illustrative ruleset used by `soundchange --demo`: intervocalic voicing, then final
 # devoicing (a classic feeding/bleeding pair), plus intervocalic /h/-loss.
@@ -106,6 +108,52 @@ def cmd_soundchange(args) -> int:
     return 0
 
 
+def cmd_morphology(args) -> int:
+    rng = random.Random(args.seed)
+    args.random = not args.inventory  # default to a random inventory
+    inv, phono = _build_phonology(args, rng)
+    romanizer = Romanizer()
+    gen = WordGenerator(phono, romanizer)
+
+    sandhi = RuleSet.parse(_DEMO_RULES) if args.sandhi else None
+    system = random_system(phono, rng, romanizer=romanizer, sandhi=sandhi)
+
+    print(inv.summary())
+    print()
+    print(system.summary())
+    if args.sandhi:
+        print("  (sandhi applied at morpheme boundaries)")
+
+    for class_name, paradigm in system.paradigms.items():
+        root_word = gen.word(rng, min_syllables=1, max_syllables=2)
+        root = [s for syl in root_word.syllables for s in syl]
+        print(f"\n{class_name.capitalize()} paradigm for {root_word.roman} /{root_word.ipa}/:")
+        rows = paradigm.table(root)
+        shown = rows[: args.max_rows]
+        bw = max((len(str(b)) for b, _, _ in shown), default=0)
+        for bundle, seg, roman in shown:
+            ipa_form = "".join(s.ipa for s in seg)
+            print(f"  {str(bundle):<{bw}}  {roman} /{ipa_form}/")
+        if len(rows) > len(shown):
+            print(f"  ... ({len(rows) - len(shown)} more cells)")
+
+    if system.derivations:
+        print("\nDerivations (derived stem shown in its citation form):")
+        for d in system.derivations:
+            # Use a root of the correct source class, then inflect the derived stem with
+            # its target paradigm (citation form) -- derivation feeding inflection.
+            src_word = gen.word(rng, min_syllables=1, max_syllables=2)
+            src_root = [s for syl in src_word.syllables for s in syl]
+            derived = system.derive(d, src_root, FeatureBundle.of())
+            roman = romanizer.romanize([list(derived)])
+            ipa_form = "".join(s.ipa for s in derived)
+            print(
+                f"  {d.gloss:<11} {d.from_class} {src_word.roman} /{src_word.ipa}/"
+                f"  ->  {d.to_class} {roman} /{ipa_form}/"
+            )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -141,6 +189,17 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--count", type=int, default=20, help="proto-lexicon size (default 20)")
     s.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     s.set_defaults(func=cmd_soundchange)
+
+    m = sub.add_parser(
+        "morphology",
+        help="roll a morphological system and show inflection paradigms",
+    )
+    m.add_argument("--inventory", help='explicit IPA inventory (else random)')
+    m.add_argument("--templates", help="comma-separated syllable templates")
+    m.add_argument("--sandhi", action="store_true", help="apply demo sound changes at boundaries")
+    m.add_argument("--max-rows", type=int, default=16, help="max paradigm cells to show (default 16)")
+    m.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    m.set_defaults(func=cmd_morphology)
     return parser
 
 

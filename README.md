@@ -24,10 +24,21 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 |-------|--------|--------|
 | 1. Phonology      | `conlang.phonology` — inventory, phonotactics, word generation | **done** |
 | 2. Sound change   | `conlang.soundchange` — SCA-style proto → daughter evolution    | **done** |
-| 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | planned |
+| 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | **done** |
 | 4. Syntax         | `conlang.syntax` — word order, grammar rules                    | planned |
 | 5. Lexicon        | `conlang.lexicon` — vocabulary & semantic fields                | planned |
 | 6. Orthography    | `conlang.writing` — romanization, glyph/pictogram generation    | planned |
+
+### Capstone applications (after the engine stages)
+
+These sit on top of the whole engine and ship last:
+
+- **Tutorial** — an interactive, guided walkthrough that teaches a user to *create* a
+  language, driving the engine stage by stage.
+- **Text-to-speech** — pronounce generated words from their IPA. Offline-first via
+  `espeak-ng` (which accepts IPA input directly), in keeping with the project philosophy.
+- **Teaching app** *(the big one)* — learn a *generated* conlang: lessons, flashcards,
+  and spaced repetition built from the language's phonology, lexicon, and grammar.
 
 ### Deferred (Stage 2 "advanced" backlog)
 
@@ -36,6 +47,15 @@ ordered (feeding/bleeding) rule application. Still to add when needed: epenthesi
 insertion (`0 > V / …`), feature-agreement assimilation (α-features, "assimilate to the
 following place" in one rule), optional / variable-length environment elements (`(C)`,
 wildcards), and multi-segment targets (gemination, metathesis).
+
+### Deferred (Stage 3 "advanced" backlog)
+
+Morphology handles inflection (agglutinative + fusional) and basic class-changing
+derivation, with optional sandhi. The largest fidelity gaps to add later: inflection
+classes / declensions / conjugations (multiple affix sets per word class), stem
+allomorphy, true analytic-particle isolating morphology (free grammatical words rather
+than affixes), extra number values (dual/paucal) and clusivity, zero-derivation
+(conversion), and derivation stacking.
 
 ## How this is built
 
@@ -53,6 +73,10 @@ python -m conlang phonology --random --seed 42  # reproducible
 # Evolve a generated proto-lexicon into a daughter language
 python -m conlang soundchange --demo --seed 42 --trace
 python -m conlang soundchange --seed 3 --rule "[voiceless plosive] > [+voiced] / V_V"
+
+# Roll a morphological system and show inflection paradigms
+python -m conlang morphology --seed 5
+python -m conlang morphology --seed 5 --sandhi   # apply sound changes at boundaries
 ```
 
 ## Layout
@@ -69,6 +93,11 @@ conlang/
     matcher.py       # feature classes, natural-class matching, reverse feature lookup
     rule.py          # parse + apply one "target > replacement / environment" rule
     ruleset.py       # ordered rules, category defs, derivation over a lexicon
+  morphology/
+    features.py      # grammatical categories, FeatureBundle, WordClass, Typology
+    affix.py         # Affix: form + position + marked features; attach to a stem
+    paradigm.py      # agglutinative + fusional inflection, paradigm tables, derivation
+    generator.py     # roll a plausible morphological system (typology, affixes, sandhi)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```

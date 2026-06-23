@@ -1,0 +1,200 @@
+"""Roll a typologically plausible morphological system.
+
+Choices are made the way the rest of the toolkit makes them — weighted sampling guided
+by cross-linguistic tendencies:
+
+- A **typology** is chosen (agglutinative is the most common, then fusional, then
+  isolating).
+- For each word class, the categories it marks are drawn by their ``commonness`` (an
+  isolating language marks far fewer).
+- A dominant **affix position** is picked per language, biased toward suffixing — the
+  strong cross-linguistic preference.
+- Affix forms are short morphemes generated from the language's own inventory, so the
+  morphology sounds like the phonology.
+
+Accidental syncretism (two cells sharing a form) is allowed, because it is realistic.
+"""
+
+from __future__ import annotations
+
+import itertools
+import random
+from dataclasses import dataclass, field
+
+from conlang.phonology.features import Segment
+from conlang.phonology.inventory import Inventory
+from conlang.phonology.phonotactics import Phonotactics
+from conlang.phonology.wordgen import Romanizer
+from conlang.morphology.features import (
+    CATEGORIES,
+    WORD_CLASSES,
+    FeatureBundle,
+    GrammaticalCategory,
+    Typology,
+)
+from conlang.morphology.affix import Affix, Position
+from conlang.morphology.paradigm import Paradigm, DerivationRule
+
+# Derivation templates: (from_class, to_class, gloss).
+_DERIVATION_TEMPLATES = [
+    ("verb", "noun", "AGENT"),
+    ("verb", "noun", "RESULT"),
+    ("noun", "adjective", "HAVING"),
+    ("adjective", "verb", "BECOME"),
+    ("noun", "noun", "DIMINUTIVE"),
+]
+
+
+@dataclass
+class MorphologySystem:
+    typology: Typology
+    paradigms: dict[str, Paradigm]
+    derivations: list[DerivationRule] = field(default_factory=list)
+
+    def inflect(self, word_class: str, root, bundle: FeatureBundle):
+        return self.paradigms[word_class].inflect(root, bundle)
+
+    def derive(self, rule: DerivationRule, root, bundle: FeatureBundle | None = None):
+        """Apply a derivation, then inflect the derived stem with its target class.
+
+        This is derivation *feeding* inflection: e.g. a verb root -> agent noun, which
+        then takes that language's noun inflection. If the target class has no paradigm
+        (or no bundle is given), the bare derived stem is returned.
+        """
+        stem = rule.apply(root)
+        target = self.paradigms.get(rule.to_class)
+        if target is None or bundle is None:
+            return stem
+        return target.inflect(stem, bundle)
+
+    def summary(self) -> str:
+        lines = [f"Morphology: {self.typology.value}"]
+        for name, par in self.paradigms.items():
+            marked = ", ".join(c.name for c in par.marked) or "(none)"
+            n = (
+                len(par.fusional_affixes)
+                if self.typology is Typology.FUSIONAL
+                else len(par.agglutinative_affixes)
+            )
+            lines.append(f"  {name}: marks {marked}  [{n} affixes]")
+        if self.derivations:
+            der = ", ".join(f"{d.gloss}({d.from_class}->{d.to_class})" for d in self.derivations)
+            lines.append(f"  derivation: {der}")
+        return "\n".join(lines)
+
+
+def random_system(
+    phonotactics: Phonotactics,
+    rng: random.Random | None = None,
+    *,
+    romanizer: Romanizer | None = None,
+    sandhi: object | None = None,
+    classes: tuple[str, ...] = ("noun", "verb", "adjective"),
+) -> MorphologySystem:
+    rng = rng or random.Random()
+    romanizer = romanizer or Romanizer()
+    inventory = phonotactics.inventory
+
+    typology = rng.choices(
+        [Typology.AGGLUTINATIVE, Typology.FUSIONAL, Typology.ISOLATING],
+        weights=[0.45, 0.35, 0.20],
+        k=1,
+    )[0]
+    # Suffixing is cross-linguistically dominant; pick a per-language bias.
+    dominant = Position.SUFFIX if rng.random() < 0.7 else Position.PREFIX
+
+    paradigms: dict[str, Paradigm] = {}
+    for class_name in classes:
+        word_class = WORD_CLASSES[class_name]
+        marked = _choose_marked_categories(rng, word_class.categories(), typology)
+        paradigms[class_name] = _build_paradigm(
+            rng, word_class, typology, marked, dominant, inventory, romanizer, sandhi
+        )
+
+    derivations = _build_derivations(rng, dominant, inventory)
+    return MorphologySystem(typology, paradigms, derivations)
+
+
+# --- Helpers ------------------------------------------------------------------------
+def _choose_marked_categories(
+    rng: random.Random, categories: list[GrammaticalCategory], typology: Typology
+) -> tuple[GrammaticalCategory, ...]:
+    scale = 0.25 if typology is Typology.ISOLATING else 1.0
+    chosen = [c for c in categories if rng.random() < c.commonness * scale]
+    # A non-isolating language should mark at least one category per class.
+    if not chosen and typology is not Typology.ISOLATING and categories:
+        chosen = [max(categories, key=lambda c: c.commonness)]
+    return tuple(chosen)
+
+
+def _build_paradigm(
+    rng, word_class, typology, marked, dominant, inventory, romanizer, sandhi
+) -> Paradigm:
+    par = Paradigm(
+        word_class=word_class,
+        typology=typology,
+        marked=marked,
+        romanizer=romanizer,
+        sandhi=sandhi,
+    )
+    if not marked:
+        return par
+
+    if typology is Typology.FUSIONAL:
+        names = [c.name for c in marked]
+        for combo in itertools.product(*[c.values for c in marked]):
+            bundle = FeatureBundle.from_dict(dict(zip(names, combo)))
+            if all(val == cat.base for cat, val in zip(marked, combo)):
+                continue  # all-base combination is the zero (citation) form
+            form = _random_affix_form(rng, inventory)
+            par.fusional_affixes[bundle] = Affix(form, dominant, bundle, gloss=str(bundle))
+    else:  # agglutinative / isolating: one affix per marked (non-base) value
+        for cat in marked:
+            for value in cat.marked_values:
+                form = _random_affix_form(rng, inventory)
+                marks = FeatureBundle.of(**{cat.name: value})
+                par.agglutinative_affixes[(cat.name, value)] = Affix(
+                    form, dominant, marks, gloss=value.upper()
+                )
+    return par
+
+
+def _build_derivations(rng, dominant, inventory) -> list[DerivationRule]:
+    k = rng.randint(2, 3)
+    templates = rng.sample(_DERIVATION_TEMPLATES, k=min(k, len(_DERIVATION_TEMPLATES)))
+    rules = []
+    for from_class, to_class, gloss in templates:
+        form = _random_affix_form(rng, inventory)
+        affix = Affix(form, dominant, FeatureBundle.of(), gloss=gloss)
+        rules.append(DerivationRule(affix, from_class, to_class, gloss))
+    return rules
+
+
+def _random_affix_form(rng: random.Random, inventory: Inventory) -> tuple[Segment, ...]:
+    """Generate a short, non-empty affix shape (sub-syllabic to one syllable).
+
+    A marked (non-base) affix must never be empty — a zero form would silently collapse
+    the marked cell into the citation form. We pick from shapes the inventory can supply,
+    and fall back to a single available segment, raising only if the inventory is empty.
+    """
+    if not inventory.segments:
+        raise ValueError("cannot generate an affix from an empty inventory")
+
+    # Only offer shapes the inventory can actually fill (e.g. no C-slots without consonants).
+    shapes = ["V", "C", "CV", "VC", "CVC"]
+    weights = [0.25, 0.15, 0.35, 0.15, 0.10]
+    usable = [
+        (sh, w)
+        for sh, w in zip(shapes, weights)
+        if ("C" not in sh or inventory.consonants) and ("V" not in sh or inventory.vowels)
+    ]
+    shape = rng.choices([s for s, _ in usable], weights=[w for _, w in usable], k=1)[0]
+
+    segments: list[Segment] = []
+    for slot in shape:
+        pool = inventory.consonants if slot == "C" else inventory.vowels
+        s_weights = [max(s.frequency, 1e-9) for s in pool]
+        segments.append(rng.choices(pool, weights=s_weights, k=1)[0])
+    if not segments:  # shape was empty-safe but produced nothing; guarantee one segment
+        segments.append(rng.choice(inventory.segments))
+    return tuple(segments)
