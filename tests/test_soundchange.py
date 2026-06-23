@@ -215,6 +215,71 @@ def test_optional_on_the_left_context():
     assert ipa(rule.apply(segs("i t a"))) == "ite"  # optional C present: i(t)_a
 
 
+# --- Multi-segment (window) rules: metathesis, gemination, splits -------------------
+def test_metathesis_swaps_two_segments():
+    rule = SoundChange.parse("[plosive] [liquid] > 2 1", RuleSet().categories)
+    assert ipa(rule.apply(segs("a t r a"))) == "arta"   # tr -> rt
+    assert ipa(rule.apply(segs("p l a"))) == "lpa"        # pl -> lp
+    assert ipa(rule.apply(segs("a r t a"))) == "arta"     # rt is not stop+liquid: unchanged
+
+
+def test_metathesis_windows_do_not_overlap():
+    # 'abab' under ab -> ba becomes 'baba', not a cascade: each window is taken once.
+    rule = SoundChange.parse("a b > 2 1", RuleSet().categories)
+    assert ipa(rule.apply(segs("a b a b"))) == "baba"
+
+
+def test_gemination_doubles_a_segment_by_backreference():
+    rule = SoundChange.parse("[voiceless plosive] > 1 1 / V_V", RuleSet().categories)
+    assert ipa(rule.apply(segs("a t a"))) == "atta"
+    assert ipa(rule.apply(segs("t a"))) == "ta"             # needs a vowel on both sides
+    assert ipa(rule.apply(segs("a t a k a"))) == "attakka"  # every eligible stop doubles
+
+
+def test_window_rule_can_reduce_or_split():
+    reduce = SoundChange.parse("s k > k", RuleSet().categories)   # cluster simplification
+    assert ipa(reduce.apply(segs("a s k a"))) == "aka"
+    split = SoundChange.parse("[plosive] > ʔ 1 / #_", RuleSet().categories)  # prothesis
+    assert ipa(split.apply(segs("p a"))) == "ʔpa"
+    assert ipa(split.apply(segs("a p a"))) == "apa"             # only word-initial
+
+
+def test_window_deletion_removes_a_cluster():
+    rule = SoundChange.parse("h h > 0", RuleSet().categories)
+    assert ipa(rule.apply(segs("a h h a"))) == "aa"
+
+
+def test_all_literal_window_swap():
+    # A two-segment target with an all-literal (no backref) reordered output.
+    rule = SoundChange.parse("s k > k s", RuleSet().categories)
+    assert ipa(rule.apply(segs("a s k a"))) == "aksa"
+
+
+def test_window_rule_orders_inside_a_ruleset():
+    # A window rule feeds a later single-segment rule: cluster reduction creates an
+    # intervocalic stop, which then voices.
+    rs = RuleSet.parse(
+        """
+        s k > k
+        [voiceless plosive] > [+voiced] / V_V
+        """
+    )
+    # 'aska': sk -> k giving 'aka'; then intervocalic k -> g -> 'aga'.
+    assert ipa(rs.apply(segs("a s k a"))) == "aga"
+
+
+def test_backreference_out_of_range_is_rejected():
+    with pytest.raises(ValueError):
+        SoundChange.parse("p > 2", RuleSet().categories)        # only one target segment
+    with pytest.raises(ValueError):
+        SoundChange.parse("p t > 3 1", RuleSet().categories)    # no third segment
+
+
+def test_feature_change_in_a_window_replacement_is_rejected():
+    with pytest.raises(ValueError):
+        SoundChange.parse("p t > [+voiced]", RuleSet().categories)
+
+
 # --- Rulesets: ordering, categories, derivation -------------------------------------
 def test_ruleset_rule_ordering_feeds():
     # Voicing feeds nothing here, but order matters: voicing then devoicing.

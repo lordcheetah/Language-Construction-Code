@@ -13,9 +13,22 @@ multi-codepoint IPA such as ``t͡ʃ``) or written compactly for single-character
     [plosive] > 0 / _(C)#                     # (X) is an optional environment element
     [nasal] > [αplace] / _[αplace plosive]    # place assimilation (α-feature agreement)
 
+Multi-segment rules act on a *window* of adjacent segments and build their output from
+positional backreferences (``1`` = the first matched segment, ``2`` = the second, …) and
+literals. This covers metathesis, gemination, and cluster splits or deletions::
+
+    [stop] [liquid] > 2 1 / _                 # metathesis (swap the two segments)
+    [voiceless plosive] > 1 1 / V_V           # gemination (double a segment)
+    s k > k                                   # cluster reduction (two segments -> one)
+    [plosive] > ʔ 1 / #_                      # split: prefix a glottal stop
+
 A rule applies **simultaneously** across the word: every site is matched against the
 original form, so a change does not feed itself within a single pass (ordering between
-*different* rules is handled by :class:`~conlang.soundchange.ruleset.RuleSet`).
+*different* rules is handled by :class:`~conlang.soundchange.ruleset.RuleSet`). Multi-segment
+windows are applied left-to-right and never overlap (so under an even-width window an odd
+trailing segment is left intact). Window targets are *adjacent* only — long-distance
+metathesis is out of scope — and their output is backreferences and literals, not feature
+changes (use a single-segment rule for feature transforms or α-feature agreement).
 """
 
 from __future__ import annotations
@@ -103,6 +116,9 @@ class SoundChange:
     right: tuple = field(default_factory=tuple)  # tuple of _Slot
     deletes: bool = False
     inserts: bool = False
+    target_seq: tuple = field(default_factory=tuple)        # multi-segment: tuple of Matcher
+    replacement_seq: tuple = field(default_factory=tuple)   # tuple of ("ref", k) | ("lit", Segment)
+    sequence: bool = False
 
     @classmethod
     def parse(cls, text: str, categories: dict[str, CategoryMatcher] | None = None) -> "SoundChange":
@@ -113,22 +129,35 @@ class SoundChange:
         target_str, _, repl_str = rule_part.partition(">")
         target_str, repl_str = target_str.strip(), repl_str.strip()
 
-        replacement = _parse_replacement(repl_str)
         left, right = _parse_environment(env_part, categories)
 
-        inserts = target_str in _DELETE_TOKENS
-        if inserts:
+        if target_str in _DELETE_TOKENS:  # insertion (epenthesis)
+            replacement = _parse_replacement(repl_str)
             if not isinstance(replacement, _Literal):
                 raise ValueError("an insertion (0 > X) must insert a literal segment")
             if not left and not right:
                 raise ValueError("an insertion (0 > X) needs an environment, e.g. 0 > ə / C_C")
-            target: Matcher | None = None
-        else:
-            target = _parse_token(target_str, categories, allow_boundary=False)
+            return cls(source=text.strip(), target=None, replacement=replacement,
+                       left=tuple(left), right=tuple(right), inserts=True)
 
+        target_tokens = _tokenize(target_str, categories)
+        repl_tokens = [] if repl_str in _DELETE_TOKENS else _tokenize(repl_str, categories)
+        # A window rule: more than one target segment, or an output that reorders/multiplies
+        # segments (multiple output tokens or a positional backreference).
+        if len(target_tokens) > 1 or len(repl_tokens) > 1 or any(_is_backref(t) for t in repl_tokens):
+            target_seq = tuple(_parse_token(t, categories, allow_boundary=False) for t in target_tokens)
+            replacement_seq = _parse_replacement_seq(repl_str, repl_tokens, len(target_seq))
+            # Invariant: replacement is None iff sequence; apply() dispatches on .sequence.
+            return cls(source=text.strip(), target=None, replacement=None,
+                       left=tuple(left), right=tuple(right), sequence=True,
+                       target_seq=target_seq, replacement_seq=replacement_seq,
+                       deletes=not replacement_seq)
+
+        # Single-segment rewrite (the common case).
+        replacement = _parse_replacement(repl_str)
+        target = _parse_token(target_str, categories, allow_boundary=False)
         # Every agreement variable used in the replacement must be captured in the context.
         _check_bound_variables(replacement, target, left, right)
-
         return cls(
             source=text.strip(),
             target=target,
@@ -136,12 +165,50 @@ class SoundChange:
             left=tuple(left),
             right=tuple(right),
             deletes=isinstance(replacement, _Delete),
-            inserts=inserts,
         )
 
     def apply(self, segments: Sequence[Segment]) -> list[Segment]:
         aug: list[Element] = [BOUNDARY, *segments, BOUNDARY]
-        return self._apply_insertion(aug) if self.inserts else self._apply_rewrite(aug)
+        if self.inserts:
+            return self._apply_insertion(aug)
+        if self.sequence:
+            return self._apply_sequence(aug)
+        return self._apply_rewrite(aug)
+
+    def _apply_sequence(self, aug: list[Element]) -> list[Segment]:
+        """Apply a multi-segment window rule, left-to-right, non-overlapping.
+
+        Windows are matched against the original form; once a window is taken the scan
+        resumes past it, so a rule never reapplies inside its own output within one pass.
+        """
+        last_real = len(aug) - 2  # aug[1..last_real] are real segments
+        width = len(self.target_seq)
+        taken: dict[int, list[Segment]] = {}
+        i = 1
+        while i <= last_real - width + 1:
+            window = aug[i:i + width]
+            if all(isinstance(window[k], Segment) and self.target_seq[k].matches(window[k])
+                   for k in range(width)):
+                right = _match_side(aug[i + width:], self.right)
+                left = _match_side(list(reversed(aug[:i])), tuple(reversed(self.left)))
+                if right is not None and left is not None:
+                    taken[i] = window  # type: ignore[assignment]
+                    i += width
+                    continue
+            i += 1
+
+        out: list[Segment] = []
+        i = 1
+        while i <= last_real:
+            if i in taken:
+                window = taken[i]
+                for kind, val in self.replacement_seq:
+                    out.append(window[val - 1] if kind == "ref" else val)
+                i += width
+            else:
+                out.append(aug[i])  # type: ignore[arg-type]
+                i += 1
+        return out
 
     def _apply_rewrite(self, aug: list[Element]) -> list[Segment]:
         # Decide every site against the original form (simultaneous application).
@@ -264,6 +331,46 @@ def _parse_replacement(token: str):
     if token in data.BY_IPA:
         return _Literal(data.BY_IPA[token])
     raise ValueError(f"unknown replacement {token!r}")
+
+
+def _is_backref(token: str) -> bool:
+    # A bare digit 1-9 is a positional backreference — unless it is itself an IPA symbol
+    # (no digit-bearing symbols are in the inventory today, but tone numerals could appear).
+    return len(token) == 1 and token in "123456789" and token not in data.BY_IPA
+
+
+def _parse_replacement_seq(repl_str: str, tokens: list[str], n_target: int) -> tuple:
+    """Parse a window rule's output: positional backreferences and/or literal segments.
+
+    Returns a tuple of ``("ref", k)`` (copy the k-th matched segment) or ``("lit", seg)``.
+    An empty tuple means the whole matched window is deleted.
+    """
+    if repl_str in _DELETE_TOKENS:
+        return ()
+    specs: list[tuple] = []
+    for tok in tokens:
+        if _is_backref(tok):
+            k = int(tok)
+            if not 1 <= k <= n_target:
+                raise ValueError(
+                    f"backreference {k} out of range; the target has {n_target} segment(s)"
+                )
+            specs.append(("ref", k))
+        elif tok in data.BY_IPA:
+            specs.append(("lit", data.BY_IPA[tok]))
+        elif tok.startswith("[") and tok.endswith("]"):
+            raise ValueError(
+                "feature changes (e.g. [+voiced], [αplace]) are not supported in a "
+                "multi-segment replacement; use a single-segment rule for those"
+            )
+        else:
+            raise ValueError(
+                f"sequence replacement token {tok!r} must be a backreference "
+                f"(1..{n_target}) or an IPA segment"
+            )
+    if not specs:
+        raise ValueError("empty sequence replacement")
+    return tuple(specs)
 
 
 def _parse_environment(env_part: str, categories) -> tuple[list[_Slot], list[_Slot]]:

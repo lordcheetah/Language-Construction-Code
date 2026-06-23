@@ -55,10 +55,12 @@ These sit on top of the whole engine and ship last:
 
 The sound-change engine handles substitution, feature-class transforms, deletion, ordered
 (feeding/bleeding) rule application, and — added since the first pass — **epenthesis**
-(`0 > ə / C_C`), **optional environment elements** (`(C)`), and **feature-agreement
-assimilation** with α-features (`[nasal] > [αplace] / _[αplace plosive]`). Still to add
-when needed: unbounded wildcards (`C*`, "any segment"), and multi-segment targets
-(gemination, metathesis).
+(`0 > ə / C_C`), **optional environment elements** (`(C)`), **feature-agreement
+assimilation** with α-features (`[nasal] > [αplace] / _[αplace plosive]`), and **multi-segment
+(window) rules** with positional backreferences for metathesis (`[stop] [liquid] > 2 1`),
+gemination (`[voiceless plosive] > 1 1 / V_V`), and cluster reduction/prothesis (`s k > k`,
+`[plosive] > ʔ 1 / #_`). Still to add when needed: unbounded wildcards (`C*`, "any segment")
+and long-distance (non-adjacent) metathesis.
 
 ### Deferred (Stage 3 "advanced" backlog)
 
