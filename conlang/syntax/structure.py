@@ -83,6 +83,10 @@ class Clause:
     negated: bool = False
     # Sentence type: "declarative", "interrogative" (yes/no question), or "imperative".
     mood: str = "declarative"
+    # If set, this is a content (wh-) question: that role's NP is an interrogative pronoun.
+    # Only core arguments (subject/object) can be questioned — no oblique/adjunct/possessor
+    # wh, no multiple wh — and fronting moves only the wh-word (no auxiliary inversion / V2).
+    questioned: "Role | None" = None
 
     @property
     def is_transitive(self) -> bool:

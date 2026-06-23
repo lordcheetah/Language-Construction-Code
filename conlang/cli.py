@@ -224,6 +224,7 @@ def cmd_syntax(args) -> int:
     adps = _build_lexicon(gen, rng, _ADP_GLOSSES, "adposition")
     particle_lex = _build_lexicon(gen, rng, ["not", "Q", "REL"], "particle")
     particles = {"neg": particle_lex["not"], "q": particle_lex["Q"], "rel": particle_lex["REL"]}
+    whs = _build_lexicon(gen, rng, ["who", "what"], "noun")
     lin = Linearizer(params, morphology, romanizer, particles=particles)
 
     print("Syntax parameters:")
@@ -273,6 +274,11 @@ def cmd_syntax(args) -> int:
             ),
             iverbs["sleep"],
         ),
+        # Content (wh-) questions on the subject and the object.
+        Clause(NounPhrase(whs["who"]), tverbs["see"],
+               NounPhrase(nouns["bird"], definiteness="indef"), questioned=Role.SUBJECT),
+        Clause(NounPhrase(nouns["woman"], definiteness="def"), tverbs["see"],
+               NounPhrase(whs["what"]), questioned=Role.OBJECT),
     ]
 
     print("\nSample sentences:")
@@ -297,7 +303,7 @@ def _english_gloss(clause) -> str:
     for pp in clause.obliques:
         parts.append(f"{pp.relation} {pp.np.gloss}")
     text = " ".join(parts)
-    if clause.mood == "interrogative":
+    if clause.mood == "interrogative" or clause.questioned is not None:
         text += "?"
     elif clause.mood == "imperative":
         text += "!"

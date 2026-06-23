@@ -209,6 +209,53 @@ def test_imperative_drops_the_subject_and_is_second_person():
     assert "2" in sent.words[0].gloss
 
 
+# --- Content (wh-) questions --------------------------------------------------------
+WHO = lex("w o", "noun", "who")
+
+
+def test_wh_in_situ_keeps_the_questioned_argument_in_place():
+    # In-situ: "who" stays in subject position (SVO -> who sees bird).
+    clause = Clause(NounPhrase(WHO), SEE, NounPhrase(BIRD), questioned=Role.SUBJECT)
+    out = forms(_lin(wh_fronting=False).linearize(clause))
+    assert out == ["wo", "ta", "pon"]
+
+
+def test_wh_fronting_moves_the_object_question_to_the_front():
+    # Object wh-word fronts past the subject (SVO -> what woman see).
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(WHO), questioned=Role.OBJECT)
+    base = forms(_lin(wh_fronting=False).linearize(clause))
+    fronted = forms(_lin(wh_fronting=True).linearize(clause))
+    # the object wh-word keeps its accusative case (won = wo + -n), fronted or not
+    assert base == ["mi", "ta", "won"]        # in situ: subject verb object
+    assert fronted == ["won", "mi", "ta"]      # fronted: object-wh first
+
+
+def test_content_question_takes_no_polar_particle():
+    clause = Clause(NounPhrase(WHO), SEE, NounPhrase(BIRD), questioned=Role.SUBJECT)
+    out = forms(_lin(wh_fronting=True, polar_question=PolarQuestion.PARTICLE_FINAL).linearize(clause))
+    assert "ka" not in out  # the yes/no marker is not used for a content question
+
+
+def test_wh_fronting_correlates_with_word_order():
+    vo = sum(derive_correlates(WordOrder.SVO, random.Random(s)).wh_fronting for s in range(200))
+    ov = sum(derive_correlates(WordOrder.SOV, random.Random(s)).wh_fronting for s in range(200))
+    assert vo > ov  # VO languages front wh-words more often
+
+
+def test_ergative_object_wh_is_unmarked():
+    # Under ergative alignment the object is absolutive (unmarked), even when questioned.
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(WHO), questioned=Role.OBJECT)
+    out = forms(_lin(alignment=Alignment.ERGATIVE_ABSOLUTIVE, wh_fronting=True).linearize(clause))
+    assert out[0] == "wo"  # absolutive object-wh fronted, no accusative -n
+
+
+def test_content_question_composes_with_negation():
+    clause = Clause(NounPhrase(WHO), SEE, NounPhrase(BIRD),
+                    questioned=Role.SUBJECT, negated=True)
+    out = forms(_lin(wh_fronting=True, negation=Negation.PARTICLE_AFTER_VERB).linearize(clause))
+    assert "wo" in out and "na" in out  # the wh-word and the negator both surface
+
+
 # --- Relative clauses ---------------------------------------------------------------
 def test_postnominal_subject_gap_takes_a_relativizer():
     # "woman [REL __ sees bird]" — postnominal: gap + relativizer; embedded subject omitted.

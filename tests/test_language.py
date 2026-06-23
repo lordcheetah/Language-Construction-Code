@@ -99,6 +99,24 @@ def test_make_sentence_rejects_unknown_gloss():
         raise AssertionError("expected KeyError for an unknown verb gloss")
 
 
+def test_make_sentence_content_question():
+    lang = Language.generate(8)
+    sent = lang.make_sentence("who", "see", "bird", question="subject")
+    assert any(w.gloss == "who" for w in sent.words)
+    assert len(sent.words) >= 3
+
+
+def test_make_sentence_rejects_bad_question_and_imperative_question():
+    lang = Language.generate(1)
+    for bad in (dict(question="subj"), dict(question="object", mood="imperative")):
+        try:
+            lang.make_sentence("who", "see", "bird", **bad)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"expected ValueError for {bad}")
+
+
 def test_make_sentence_rejects_pos_mismatch():
     lang = Language.generate(1)
     try:

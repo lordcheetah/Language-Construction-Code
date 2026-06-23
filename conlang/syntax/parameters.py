@@ -91,8 +91,10 @@ class SyntaxParameters:
     alignment: Alignment
     negation: Negation = Negation.PARTICLE_BEFORE_VERB
     polar_question: PolarQuestion = PolarQuestion.PARTICLE_FINAL
+    wh_fronting: bool = False  # content questions move the wh-word clause-initial
 
     def describe(self) -> str:
+        wh = "fronted" if self.wh_fronting else "in situ"
         return (
             f"  basic order: {self.basic_order.name}\n"
             f"  adpositions: {self.adposition.value}\n"
@@ -101,7 +103,7 @@ class SyntaxParameters:
             f"  relative:    {self.relative.value} the noun\n"
             f"  alignment:   {self.alignment.value}\n"
             f"  negation:    {self.negation.value}\n"
-            f"  questions:   {self.polar_question.value}"
+            f"  questions:   {self.polar_question.value}; wh-words {wh}"
         )
 
 
@@ -151,6 +153,9 @@ def derive_correlates(
             [PolarQuestion.PARTICLE_INITIAL, PolarQuestion.PARTICLE_FINAL, PolarQuestion.INTONATION],
             weights=[0.10, 0.55, 0.35], k=1)[0]
 
+    # Wh-fronting is more common in VO languages; in-situ dominates OV (and is common overall).
+    wh_fronting = rng.random() < (0.55 if basic_order.is_vo else 0.20)
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -160,4 +165,5 @@ def derive_correlates(
         alignment=alignment,
         negation=negation,
         polar_question=polar_question,
+        wh_fronting=wh_fronting,
     )

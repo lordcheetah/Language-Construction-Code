@@ -27,7 +27,7 @@ from conlang.phonology.wordgen import WordGenerator, Romanizer, Word
 from conlang.morphology.generator import random_system, MorphologySystem
 from conlang.syntax.generator import random_syntax
 from conlang.syntax.parameters import SyntaxParameters
-from conlang.syntax.structure import Lexeme, NounPhrase, Clause
+from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Role
 from conlang.syntax.linearizer import Linearizer, Sentence
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Lexicon
@@ -42,7 +42,8 @@ from conlang.writing.system import WritingSystem
 # v3: clause-level sentence types added negator/question particles to the lexicon.
 # v4: a numeral system is rolled per language.
 # v5: a relativizer particle was added to the lexicon.
-GENERATOR_VERSION = 5
+# v6: interrogative pronouns (who/what) were added to the lexicon.
+GENERATOR_VERSION = 6
 
 
 @dataclass
@@ -138,13 +139,21 @@ class Language:
         tense: str = "pres",
         negated: bool = False,
         mood: str = "declarative",
+        question: str | None = None,
     ) -> Sentence:
         """Build and inflect a clause from dictionary glosses, then linearize it.
 
         This is the whole stack in one call: the lexicon supplies the roots, the morphology
         inflects them, and the syntax orders, case-marks, negates, and marks sentence type.
         ``mood`` is "declarative", "interrogative" (yes/no question), or "imperative".
+        ``question`` ("subject" or "object") makes a content (wh-) question on that role,
+        whose gloss should be a wh-pronoun ("who"/"what"). Only core arguments can be
+        questioned, and wh-fronting moves just the wh-word — no auxiliary inversion.
         """
+        if question is not None and question not in ("subject", "object"):
+            raise ValueError("question must be 'subject', 'object', or None")
+        if question is not None and mood == "imperative":
+            raise ValueError("an imperative clause cannot also be a content question")
         subj = NounPhrase(
             self._lexeme(subject, expect_pos="noun"),
             adjective=self._lexeme(subject_adjective, expect_pos="adjective")
@@ -158,9 +167,10 @@ class Language:
                 self._lexeme(obj, expect_pos="noun"),
                 number=object_number, definiteness=object_definiteness,
             )
+        questioned = {"subject": Role.SUBJECT, "object": Role.OBJECT}.get(question)
         clause = Clause(
             subj, self._lexeme(verb, expect_pos="verb"), obj_np,
-            tense=tense, negated=negated, mood=mood,
+            tense=tense, negated=negated, mood=mood, questioned=questioned,
         )
         linearizer = Linearizer(
             self.syntax, self.morphology, self.romanizer, particles=self._particles()

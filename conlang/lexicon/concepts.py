@@ -27,7 +27,10 @@ class Concept:
 # field -> (part of speech, [(gloss, basicness), ...])
 _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
     # Deictic/pronominal core (demonstratives treated as nominal for word-class purposes).
-    "deixis": ("noun", [("I", 0.95), ("you", 0.90), ("we", 0.85), ("this", 0.85), ("that", 0.80)]),
+    "deixis": ("noun", [
+        ("I", 0.95), ("you", 0.90), ("we", 0.85), ("this", 0.85), ("that", 0.80),
+        ("who", 0.85), ("what", 0.85),  # interrogative pronouns (content questions)
+    ]),
     # Grammatical particles: negator, yes/no-question marker, relativizer (function words).
     "particle": ("particle", [("not", 0.95), ("Q", 0.85), ("REL", 0.80)]),
     "people": ("noun", [("person", 0.95), ("man", 0.90), ("woman", 0.90), ("child", 0.85)]),

@@ -115,8 +115,16 @@ class Linearizer:
                 clause.object, self._core_case(Role.OBJECT, transitive)
             )
 
+        order = list(self.params.basic_order.sequence)
+        # A content (wh-) question may move the questioned constituent to the front.
+        if clause.questioned is not None and self.params.wh_fronting:
+            q_slot = "S" if clause.questioned is Role.SUBJECT else "O"
+            if q_slot in order:
+                order.remove(q_slot)
+                order.insert(0, q_slot)
+
         words: list[GlossedWord] = []
-        for slot in self.params.basic_order.sequence:
+        for slot in order:
             if slot in constituents:
                 words.extend(constituents[slot])
         # Obliques are placed clause-finally here (a simplification); their *internal*
@@ -232,7 +240,8 @@ class Linearizer:
         return self.params.negation is Negation.VERBAL or "neg" not in self.particles
 
     def _mark_polar_question(self, clause: Clause, words: list[GlossedWord]) -> list[GlossedWord]:
-        if clause.mood != "interrogative":
+        # Polar marking applies only to yes/no questions, not content (wh-) questions.
+        if clause.mood != "interrogative" or clause.questioned is not None:
             return words
         q = self._particle("q", "Q")
         if q is None or self.params.polar_question is PolarQuestion.INTONATION:
