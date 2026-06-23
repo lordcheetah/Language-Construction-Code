@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "conlang"
+version = "0.1.0"
+description = "A toolkit for generating constructed languages, grounded in the Language Construction Kit."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "lordcheetah" }]
+keywords = ["conlang", "linguistics", "phonology", "language", "generation"]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+conlang = "conlang.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["conlang*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
