@@ -1,10 +1,16 @@
-"""Map a phoneme's features to an acoustic plan.
+"""Map a phoneme to an acoustic plan: a formant target plus timed source segments.
 
-Each segment becomes a short list of :class:`Part` chunks the synthesizer can render. The
-mapping is articulatory: a vowel is a voiced buzz shaped by formants computed from its
-height and backness; a fricative is noise shaped to a place-dependent band; a plosive is a
-closure (silent, or a faint voiced bar) followed by a noise burst; nasals, liquids, and
-glides are low-amplitude voiced resonances.
+Each segment becomes a :class:`Phone` with a single formant *anchor* — the (F1, F2, F3)
+the formant track aims at — and a list of :class:`Source` segments describing how it is
+excited over time (a voiced buzz, shaped noise, or silence). The synthesizer interpolates
+the formant anchors across the whole word, so a vowel next to a consonant glides toward
+that consonant's anchor (its *locus*) and back. Those formant transitions, especially in
+F2, are the main cue for a consonant's place of articulation — the thing the previous
+butt-jointed model lacked.
+
+For voiced "resonant" phones (vowels, nasals, liquids, glides) the anchor is the steady
+formant the phone holds; for obstruents (stops, fricatives, affricates) it is a locus that
+only shapes the neighbours' transitions, since the obstruent itself is silence or noise.
 """
 
 from __future__ import annotations
@@ -24,15 +30,26 @@ from conlang.phonology.features import (
 
 
 @dataclass(frozen=True)
-class Part:
-    """One acoustic chunk: a voiced resonance, shaped noise, or silence."""
+class Source:
+    """One excitation segment of a phone."""
 
-    kind: str                       # "voiced" | "noise" | "silence"
     duration: float                 # seconds (before the voice's rate scaling)
-    formants: tuple = ()            # ((freq_hz, bandwidth_hz), ...) — resonator bands
+    kind: str                       # "voiced" | "noise" | "silence"
     amp: float = 1.0
-    voiced_noise: bool = False      # a voiced fricative: noise plus a glottal buzz
-    modulate: float = 0.0           # amplitude-modulation rate in Hz (for trills)
+    noise_band: tuple[float, float] | None = None  # (center_hz, bw_hz) for shaped noise
+    voiced_noise: bool = False       # voiced fricative: noise plus a glottal buzz
+    modulate: float = 0.0            # amplitude-modulation rate in Hz (for trills)
+
+
+@dataclass(frozen=True)
+class Phone:
+    formants: tuple[float, float, float]  # (F1, F2, F3) anchor frequencies in Hz
+    sources: tuple[Source, ...]
+    voiced_resonant: bool  # True for vowels/sonorants (hold a steady formant)
+
+    @property
+    def duration(self) -> float:
+        return sum(s.duration for s in self.sources)
 
 
 # --- Vowel formants from features ---------------------------------------------------
@@ -44,16 +61,23 @@ _BACKNESS_F2 = {Backness.FRONT: 2150, Backness.CENTRAL: 1550, Backness.BACK: 900
 
 
 def vowel_formants(v: Vowel) -> tuple:
+    """(F1, F2, F3) for a vowel: height sets F1, backness sets F2, rounding lowers both upper."""
     f1 = _HEIGHT_F1[v.height]
     f2 = _BACKNESS_F2[v.backness]
     f3 = 2600 if v.backness is Backness.FRONT else 2500
-    if v.rounded:  # rounding lowers the upper formants
+    if v.rounded:
         f2 -= 170
         f3 -= 180
-    return ((f1, 60), (f2, 90), (f3, 160))
+    return (f1, f2, f3)
 
 
-# --- Consonant place tables ---------------------------------------------------------
+# --- Consonant formant loci ---------------------------------------------------------
+# F2 locus by place — the key place-of-articulation cue carried by the transition.
+_PLACE_F2 = {
+    Place.BILABIAL: 800, Place.LABIODENTAL: 1000, Place.DENTAL: 1700, Place.ALVEOLAR: 1700,
+    Place.POSTALVEOLAR: 2000, Place.RETROFLEX: 1600, Place.PALATAL: 2300, Place.VELAR: 2000,
+    Place.UVULAR: 1400, Place.PHARYNGEAL: 1200, Place.GLOTTAL: 1500,
+}
 _PLACE_BURST = {
     Place.BILABIAL: 900, Place.LABIODENTAL: 1200, Place.DENTAL: 2600, Place.ALVEOLAR: 3200,
     Place.POSTALVEOLAR: 2500, Place.RETROFLEX: 2200, Place.PALATAL: 2800, Place.VELAR: 1800,
@@ -65,63 +89,64 @@ _PLACE_FRICATIVE = {
     Place.PALATAL: (3000, 1800), Place.VELAR: (1600, 1200), Place.UVULAR: (1200, 1000),
     Place.PHARYNGEAL: (1000, 900), Place.GLOTTAL: (1500, 3000),
 }
-_NASAL_F2 = {
-    Place.BILABIAL: 1000, Place.LABIODENTAL: 1100, Place.DENTAL: 1500, Place.ALVEOLAR: 1500,
-    Place.POSTALVEOLAR: 1700, Place.RETROFLEX: 1600, Place.PALATAL: 1900, Place.VELAR: 2100,
-    Place.UVULAR: 1300, Place.PHARYNGEAL: 1100, Place.GLOTTAL: 1200,
-}
-
-_LATERAL_FORMANTS = ((350, 80), (1100, 90), (2600, 160))
-_RHOTIC_FORMANTS = ((350, 90), (1300, 120), (2400, 160))
 
 
-def _is_voiced(c: Consonant) -> bool:
-    return c.voicing is Voicing.VOICED
+def consonant_formants(c: Consonant) -> tuple:
+    """(F1, F2, F3) locus/steady formants — the target the neighbouring transitions aim at."""
+    f2 = _PLACE_F2[c.place]
+    m = c.manner
+    if m is Manner.NASAL:
+        return (250, f2, 2500)
+    if m is Manner.LATERAL_APPROXIMANT:
+        return (350, 1100, 2600)
+    if m in (Manner.TRILL, Manner.TAP):
+        return (350, 1300, 1600)  # lowered F3 is the rhotic cue
+    if m is Manner.APPROXIMANT:
+        if c.place is Place.PALATAL:
+            return (300, 2200, 2900)  # /j/ ~ i
+        return (300, 800, 2200)       # /w/ ~ u
+    # Obstruents: low F1, place-based F2 locus. The velar locus is fixed (~2000); real
+    # velars vary with the adjacent vowel (the "velar pinch") — a deliberate simplification.
+    return (300, f2, 2500)
 
 
 # --- The plan -----------------------------------------------------------------------
-def plan_for(seg: Segment) -> list[Part]:
+def plan_phone(seg: Segment) -> Phone:
     if isinstance(seg, Vowel):
         dur = 0.25 if seg.long else 0.15
-        return [Part("voiced", dur, vowel_formants(seg), amp=1.0)]
+        return Phone(vowel_formants(seg), (Source(dur, "voiced", 1.0),), voiced_resonant=True)
 
     assert isinstance(seg, Consonant)
+    formants = consonant_formants(seg)
     m = seg.manner
-    voiced = _is_voiced(seg)
+    voiced = seg.voicing is Voicing.VOICED
 
     if m in (Manner.PLOSIVE, Manner.AFFRICATE):
-        parts: list[Part] = []
-        if voiced:  # a voiced closure has a low "voice bar" rather than silence
-            parts.append(Part("voiced", 0.05, ((180, 80),), amp=0.35))
+        sources: list[Source] = []
+        if voiced:
+            sources.append(Source(0.05, "voiced", 0.3))  # a low voice bar during closure
         else:
-            parts.append(Part("silence", 0.055))
-        burst_center = _PLACE_BURST[seg.place]
-        parts.append(Part("noise", 0.012, ((burst_center, 1500),), amp=0.7))
-        if m is Manner.AFFRICATE:  # release into frication
-            center, bw = _PLACE_FRICATIVE[seg.place]
-            parts.append(Part("noise", 0.07, ((center, bw),), amp=0.5, voiced_noise=voiced))
-        return parts
+            sources.append(Source(0.055, "silence"))
+        sources.append(Source(0.012, "noise", amp=0.7, noise_band=(_PLACE_BURST[seg.place], 1500)))
+        if m is Manner.AFFRICATE:
+            band = _PLACE_FRICATIVE[seg.place]
+            sources.append(Source(0.07, "noise", amp=0.5, noise_band=band, voiced_noise=voiced))
+        return Phone(formants, tuple(sources), voiced_resonant=False)
 
     if m in (Manner.FRICATIVE, Manner.LATERAL_FRICATIVE):
-        center, bw = _PLACE_FRICATIVE[seg.place]
-        return [Part("noise", 0.13, ((center, bw),), amp=0.5, voiced_noise=voiced)]
+        band = _PLACE_FRICATIVE[seg.place]
+        return Phone(
+            formants, (Source(0.13, "noise", amp=0.5, noise_band=band, voiced_noise=voiced),),
+            voiced_resonant=False,
+        )
 
     if m is Manner.NASAL:
-        f2 = _NASAL_F2[seg.place]
-        return [Part("voiced", 0.09, ((250, 80), (f2, 150), (2500, 200)), amp=0.6)]
-
+        return Phone(formants, (Source(0.09, "voiced", 0.65),), voiced_resonant=True)
     if m is Manner.TRILL:
-        return [Part("voiced", 0.11, _RHOTIC_FORMANTS, amp=0.6, modulate=28.0)]
-
+        return Phone(formants, (Source(0.11, "voiced", 0.65, modulate=28.0),), voiced_resonant=True)
     if m is Manner.TAP:
-        return [Part("voiced", 0.03, _RHOTIC_FORMANTS, amp=0.55)]
-
+        return Phone(formants, (Source(0.03, "voiced", 0.6),), voiced_resonant=True)
     if m is Manner.LATERAL_APPROXIMANT:
-        return [Part("voiced", 0.08, _LATERAL_FORMANTS, amp=0.6)]
-
-    # Plain approximants / glides: a short vowel-like resonance (/j/ like i, /w/ like u).
-    if seg.place is Place.PALATAL:
-        formants = ((300, 70), (2150, 100), (2600, 160))   # j ~ i
-    else:
-        formants = ((300, 70), (730, 100), (2400, 160))    # w ~ u
-    return [Part("voiced", 0.07, formants, amp=0.65)]
+        return Phone(formants, (Source(0.08, "voiced", 0.65),), voiced_resonant=True)
+    # plain approximant / glide
+    return Phone(formants, (Source(0.07, "voiced", 0.7),), voiced_resonant=True)

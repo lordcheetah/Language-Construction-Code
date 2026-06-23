@@ -1,10 +1,12 @@
-"""The formant synthesizer: turn an acoustic plan into audio and write a WAV.
+"""The formant synthesizer: build a formant track, then synthesize it in one pass.
 
-A classic source/filter model. Voiced sounds excite a glottal pulse train (a buzz at the
-fundamental F0) and pass it through a cascade of two-pole formant resonators; voiceless
-sounds use white noise shaped by a single band; plosive closures are silence (or a faint
-voiced bar). Parts are enveloped to avoid clicks and concatenated; the whole utterance is
-normalized. Output is 16-bit mono PCM via the standard-library ``wave`` module.
+A source/filter model with *formant transitions*. The phones' formant anchors are laid on
+a timeline and linearly interpolated, so a vowel beside a consonant glides toward that
+consonant's locus and back — the transition that cues place of articulation. The whole
+utterance is then synthesized in a single pass: a continuous glottal pulse train (for
+voiced stretches) runs through three time-varying cascade formant resonators whose
+frequencies follow the track, while noise stretches (fricatives, bursts) are shaped by
+their own band. Output is 16-bit mono PCM WAV via the standard-library ``wave`` module.
 """
 
 from __future__ import annotations
@@ -17,7 +19,11 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from conlang.phonology.features import Segment
-from conlang.speech.phones import Part, plan_for
+from conlang.speech.phones import Phone, plan_phone
+
+# Formant bandwidths (Hz) for the three resonators; fixed, the frequencies vary over time.
+_BW = (80.0, 90.0, 150.0)
+_TRANSITION_S = 0.045  # how long a formant glide into/out of a steady phone lasts
 
 
 @dataclass(frozen=True)
@@ -31,30 +37,26 @@ class Synthesizer:
     def __init__(self, voice: Voice | None = None, rng: random.Random | None = None) -> None:
         self.voice = voice or Voice()
         self.rng = rng or random.Random()
-        # Snapshot the RNG so every synthesize() call on this instance is reproducible
-        # (determinism is per-call, not just per-fresh-instance).
-        self._rng0 = self.rng.getstate()
+        self._rng0 = self.rng.getstate()  # reseed each synthesize() for per-call determinism
 
     # --- Public API ------------------------------------------------------------------
     def synthesize(self, segments: Sequence[Segment]) -> list[float]:
         self.rng.setstate(self._rng0)
         sr = self.voice.sample_rate
-        period = max(1, int(sr / self.voice.f0))
-        overlap = max(1, int(0.008 * sr))  # ~8 ms crossfade between adjacent parts
+        phones = [plan_phone(s) for s in segments]
+        segs = [(max(1, int(s.duration * sr / self.voice.rate)), s)
+                for ph in phones for s in ph.sources]
+        total = sum(n for n, _ in segs)
+        if total == 0:
+            return []
 
-        rendered: list[list[float]] = []
-        phase = 0  # glottal phase carried across parts so the buzz stays continuous
-        for seg in segments:
-            for part in plan_for(seg):
-                samples, phase = self._render(part, phase, period)
-                rendered.append(samples)
-
-        out = _crossfade_concat(rendered, overlap)
+        f1s, f2s, f3s = self._formant_tracks(phones, total)
+        glottal = self._glottal_source(total)
+        out = self._render(segs, total, f1s, f2s, f3s, glottal)
         return _normalize(_envelope(out, sr))
 
     def synthesize_word(self, word) -> list[float]:
-        segments = [s for syl in word.syllables for s in syl]
-        return self.synthesize(segments)
+        return self.synthesize([s for syl in word.syllables for s in syl])
 
     def to_wav_bytes(self, samples: Sequence[float]) -> bytes:
         buf = io.BytesIO()
@@ -69,103 +71,119 @@ class Synthesizer:
         with open(path, "wb") as fh:
             fh.write(self.to_wav_bytes(samples))
 
-    # --- Rendering one part ----------------------------------------------------------
-    def _render(self, part: Part, phase: int, period: int) -> tuple[list[float], int]:
+    # --- Formant track ---------------------------------------------------------------
+    def _formant_tracks(self, phones: list[Phone], total: int):
+        """Interpolated F1/F2/F3 over every sample, from each phone's anchors."""
         sr = self.voice.sample_rate
-        n = max(1, int(part.duration * sr / self.voice.rate))
-        next_phase = (phase + n) % period
+        anchors: list[tuple[int, tuple]] = []  # (sample index, (f1, f2, f3))
+        t = 0
+        for ph in phones:
+            dur = sum(max(1, int(s.duration * sr / self.voice.rate)) for s in ph.sources)
+            trans = min(int(_TRANSITION_S * sr), dur // 2)
+            if ph.voiced_resonant:  # a steady plateau, with glides only at the edges
+                anchors.append((t + trans, ph.formants))
+                anchors.append((t + dur - trans, ph.formants))
+            else:  # obstruent: aim the neighbours' transitions at the locus
+                anchors.append((t, ph.formants))
+                anchors.append((t + dur, ph.formants))
+            t += dur
+        # Hold the first/last anchor out to the utterance edges. A word-initial obstruent's
+        # locus thus sits flat from t=0 (no pre-locus glide), which is fine — there is no
+        # preceding sound to transition from.
+        anchors = [(0, anchors[0][1]), *anchors, (total, anchors[-1][1])]
 
-        if part.kind == "silence":
-            return [0.0] * n, next_phase
+        f1 = [0.0] * total
+        f2 = [0.0] * total
+        f3 = [0.0] * total
+        for (i0, a), (i1, b) in zip(anchors, anchors[1:]):
+            i0, i1 = max(0, i0), min(total, i1)
+            if i1 <= i0:
+                continue
+            span = i1 - i0
+            for i in range(i0, i1):
+                u = (i - i0) / span
+                f1[i] = a[0] + (b[0] - a[0]) * u
+                f2[i] = a[1] + (b[1] - a[1]) * u
+                f3[i] = a[2] + (b[2] - a[2]) * u
+        return f1, f2, f3
 
-        if part.kind == "voiced":
-            src = self._glottal_source(n, phase, period)
-            out = _cascade(src, part.formants, sr)
-        else:  # "noise"
-            out = [self.rng.uniform(-1.0, 1.0) for _ in range(n)]
-            if part.formants:
-                center, bw = part.formants[0]
-                out = _resonator(out, center, bw, sr)
-            if part.voiced_noise:  # voiced fricative: add a glottal buzz underneath
-                buzz = _cascade(self._glottal_source(n, phase, period), ((250, 90),), sr)
-                out = [o + 0.5 * b for o, b in zip(out, buzz)]
-
-        out = [s * part.amp for s in out]
-        if part.modulate:
-            out = self._amplitude_modulate(out, part.modulate, sr)
-        return out, next_phase
-
-    def _glottal_source(self, n: int, phase: int, period: int) -> list[float]:
-        # Pulse train at the fundamental, continued from `phase` for cross-part continuity.
-        src = [0.0] * n
-        for i in range(n):
-            if (i + phase) % period == 0:
-                src[i] = 1.0
-        # Shape each impulse into a decaying pulse (spectral tilt, less aliasing buzz) and
-        # remove the resulting DC offset before it reaches the formant filters.
-        decay = 0.9
+    def _glottal_source(self, total: int) -> list[float]:
+        period = max(1, int(self.voice.sample_rate / self.voice.f0))
+        src = [0.0] * total
+        for i in range(0, total, period):
+            src[i] = 1.0
+        # Shape each impulse into a decaying pulse (spectral tilt) and remove the DC offset.
         y = 0.0
-        for i in range(n):
-            y = src[i] + decay * y
+        for i in range(total):
+            y = src[i] + 0.9 * y
             src[i] = y
-        mean = sum(src) / n
+        mean = sum(src) / total
         return [s - mean for s in src]
 
-    def _amplitude_modulate(self, samples: list[float], hz: float, sr: int) -> list[float]:
-        return [
-            s * (0.55 + 0.45 * math.sin(2 * math.pi * hz * i / sr))
-            for i, s in enumerate(samples)
-        ]
+    # --- Single-pass render ----------------------------------------------------------
+    def _render(self, segs, total, f1s, f2s, f3s, glottal) -> list[float]:
+        sr = self.voice.sample_rate
+        two_pi = 2.0 * math.pi
+        # Cascade resonators: constant radii/gains, frequencies vary per sample.
+        r = tuple(math.exp(-math.pi * bw / sr) for bw in _BW)
+        g = tuple((1.0 - ri) * math.sqrt(1.0 - ri * ri) for ri in r)
+        s1a = s1b = s2a = s2b = s3a = s3b = 0.0  # cascade states
+        na = nb = 0.0                            # noise-band state
+
+        out = [0.0] * total
+        i = 0
+        for n, src in segs:
+            if src.kind == "silence":
+                # A voiceless closure resets the resonators, so the following vowel starts
+                # from a clean state rather than the frozen pre-closure one (avoids a click).
+                s1a = s1b = s2a = s2b = s3a = s3b = 0.0
+            if src.kind == "noise" and src.noise_band:
+                nf, nbw = src.noise_band
+                rn = math.exp(-math.pi * nbw / sr)
+                cn = 2.0 * rn * math.cos(two_pi * nf / sr)
+                gn = 1.0 - rn
+            for _ in range(n):
+                if src.kind == "voiced":
+                    x = glottal[i]
+                elif src.kind == "noise":
+                    x = self.rng.uniform(-1.0, 1.0)
+                    if src.voiced_noise:
+                        x = x * 0.7 + 0.6 * glottal[i]
+                else:
+                    x = 0.0
+                if src.modulate:
+                    x *= 0.55 + 0.45 * math.sin(two_pi * src.modulate * i / sr)
+
+                if src.kind == "voiced":
+                    c1 = 2.0 * r[0] * math.cos(two_pi * f1s[i] / sr)
+                    y1 = g[0] * x + c1 * s1a - r[0] * r[0] * s1b
+                    s1b, s1a = s1a, y1
+                    c2 = 2.0 * r[1] * math.cos(two_pi * f2s[i] / sr)
+                    y2 = g[1] * y1 + c2 * s2a - r[1] * r[1] * s2b
+                    s2b, s2a = s2a, y2
+                    c3 = 2.0 * r[2] * math.cos(two_pi * f3s[i] / sr)
+                    y3 = g[2] * y2 + c3 * s3a - r[2] * r[2] * s3b
+                    s3b, s3a = s3a, y3
+                    val = y3
+                elif src.kind == "noise" and src.noise_band:
+                    y = gn * x + cn * na - rn * rn * nb
+                    nb, na = na, y
+                    val = y
+                else:
+                    val = x
+                out[i] = val * src.amp
+                i += 1
+        return out
 
 
 # --- DSP helpers --------------------------------------------------------------------
-def _resonator(x: Sequence[float], freq: float, bw: float, sr: int) -> list[float]:
-    """A two-pole resonator (formant filter) at *freq* with bandwidth *bw*."""
-    r = math.exp(-math.pi * bw / sr)
-    c = 2.0 * r * math.cos(2.0 * math.pi * freq / sr)
-    # Normalize so the resonance peaks near unity regardless of bandwidth, otherwise a
-    # narrow formant would dominate the others (relative formant amplitudes matter).
-    g = (1.0 - r) * math.sqrt(1.0 - r * r)
-    y = [0.0] * len(x)
-    y1 = y2 = 0.0
-    for i, xi in enumerate(x):
-        yn = g * xi + c * y1 - r * r * y2
-        y[i] = yn
-        y2, y1 = y1, yn
-    return y
-
-
-def _cascade(x: Sequence[float], formants: Sequence[tuple], sr: int) -> list[float]:
-    out = list(x)
-    for freq, bw in formants:
-        out = _resonator(out, freq, bw, sr)
-    return out
-
-
-def _crossfade_concat(parts: list[list[float]], overlap: int) -> list[float]:
-    """Join rendered parts with a short linear crossfade so boundaries don't click or notch."""
-    out: list[float] = []
-    for seg in parts:
-        if not seg:
-            continue
-        if not out:
-            out = list(seg)
-            continue
-        ov = min(overlap, len(out), len(seg))
-        for i in range(ov):
-            g = (i + 1) / (ov + 1)
-            out[len(out) - ov + i] = out[len(out) - ov + i] * (1 - g) + seg[i] * g
-        out.extend(seg[ov:])
-    return out
-
-
 def _envelope(samples: list[float], sr: int, ramp_s: float = 0.006) -> list[float]:
-    """Apply a short linear fade in/out so concatenated parts don't click."""
+    """Apply a short linear fade in/out so the utterance edges don't click."""
     k = min(len(samples) // 2, max(1, int(ramp_s * sr)))
     for i in range(k):
-        g = i / k
-        samples[i] *= g
-        samples[-1 - i] *= g
+        gain = i / k
+        samples[i] *= gain
+        samples[-1 - i] *= gain
     return samples
 
 

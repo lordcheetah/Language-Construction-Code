@@ -16,6 +16,6 @@ possible future addition.)
 """
 
 from conlang.speech.synth import Voice, Synthesizer
-from conlang.speech.phones import plan_for
+from conlang.speech.phones import plan_phone
 
-__all__ = ["Voice", "Synthesizer", "plan_for"]
+__all__ = ["Voice", "Synthesizer", "plan_phone"]

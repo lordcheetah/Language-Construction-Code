@@ -11,7 +11,7 @@ import random
 import wave
 
 from conlang.phonology import data
-from conlang.speech.phones import Part, plan_for, vowel_formants
+from conlang.speech.phones import Source, Phone, plan_phone, vowel_formants, consonant_formants
 from conlang.speech.synth import Voice, Synthesizer, _to_pcm16
 
 
@@ -23,30 +23,63 @@ def synth(seed: int = 0, **voice_kw) -> Synthesizer:
     return Synthesizer(Voice(**voice_kw), random.Random(seed))
 
 
+def _kinds(seg):
+    return [s.kind for s in plan_phone(seg).sources]
+
+
 # --- Plan ---------------------------------------------------------------------------
 def test_vowel_formants_track_features():
     # Close front /i/ has a low F1 and high F2; open /a/ has a high F1.
     i = vowel_formants(data.vowel("i"))
     a = vowel_formants(data.vowel("a"))
-    assert i[0][0] < a[0][0]            # F1(i) < F1(a)  (height)
-    assert i[1][0] > vowel_formants(data.vowel("u"))[1][0]  # F2(i) > F2(u) (backness)
+    assert i[0] < a[0]            # F1(i) < F1(a)  (height)
+    assert i[1] > vowel_formants(data.vowel("u"))[1]  # F2(i) > F2(u) (backness)
 
 
 def test_rounding_lowers_f2():
     # /y/ is rounded /i/: same height/backness, lower F2.
-    assert vowel_formants(data.vowel("y"))[1][0] < vowel_formants(data.vowel("i"))[1][0]
+    assert vowel_formants(data.vowel("y"))[1] < vowel_formants(data.vowel("i"))[1]
+
+
+def test_consonant_f2_locus_tracks_place():
+    # The F2 locus is the place cue: bilabial low, alveolar mid, palatal high.
+    p = consonant_formants(data.consonant("p"))[1]
+    t = consonant_formants(data.consonant("t"))[1]
+    k = consonant_formants(data.consonant("k"))[1]
+    assert p < t < k or p < k  # bilabial locus is the lowest
+    assert p < t
 
 
 def test_plan_shapes_by_manner():
-    assert [p.kind for p in plan_for(data.vowel("a"))] == ["voiced"]
+    assert _kinds(data.vowel("a")) == ["voiced"]
     # voiceless plosive: silent closure then a noise burst
-    assert [p.kind for p in plan_for(data.consonant("p"))] == ["silence", "noise"]
+    assert _kinds(data.consonant("p")) == ["silence", "noise"]
     # voiced plosive: a voiced bar instead of silence
-    assert plan_for(data.consonant("b"))[0].kind == "voiced"
-    assert [p.kind for p in plan_for(data.consonant("s"))] == ["noise"]
-    assert [p.kind for p in plan_for(data.consonant("m"))] == ["voiced"]
+    assert plan_phone(data.consonant("b")).sources[0].kind == "voiced"
+    assert _kinds(data.consonant("s")) == ["noise"]
+    assert _kinds(data.consonant("m")) == ["voiced"]
     # affricate: closure, burst, frication
-    assert len(plan_for(data.consonant("t͡ʃ"))) == 3
+    assert len(plan_phone(data.consonant("t͡ʃ")).sources) == 3
+    # vowels and sonorants are "voiced resonant"; obstruents are not
+    assert plan_phone(data.vowel("a")).voiced_resonant
+    assert plan_phone(data.consonant("m")).voiced_resonant
+    assert not plan_phone(data.consonant("p")).voiced_resonant
+
+
+def test_formant_transition_into_a_vowel():
+    # /b a/: the vowel's F2 should start nearer the bilabial locus and rise toward /a/'s F2,
+    # i.e. the track is not flat across the vowel onset (a real transition).
+    sy = synth(0, sample_rate=16000)
+    f1s, f2s, f3s = sy._formant_tracks(
+        [plan_phone(s) for s in segs("b a")],
+        sum(max(1, int(s.duration * 16000)) for ph in (plan_phone(x) for x in segs("b a"))
+            for s in ph.sources),
+    )
+    a_f2 = vowel_formants(data.vowel("a"))[1]
+    # somewhere in the track F2 sits well below the /a/ steady value (pulled toward the locus)
+    assert min(f2s) < a_f2 - 100
+    # and it reaches the /a/ steady value by the end
+    assert abs(f2s[-1] - a_f2) < 60
 
 
 # --- Synthesis contract -------------------------------------------------------------
@@ -96,6 +129,29 @@ def test_cascade_stays_finite_and_bounded():
     # A run of narrow-bandwidth vowels through the 3-stage cascade must not blow up.
     out = synth(0).synthesize(segs("i i i i u u a a"))
     assert all(math.isfinite(s) and -1.0 <= s <= 1.0 for s in out)
+
+
+def test_stable_under_fast_alternating_transitions():
+    # Rapid place jumps (bilabial<->velar) drive the time-varying resonators hard.
+    out = synth(0).synthesize(segs("g i b a g i b a g i"))
+    assert out and all(math.isfinite(s) and -1.0 <= s <= 1.0 for s in out)
+
+
+def _f2_track(sy, symbols):
+    phones = [plan_phone(s) for s in segs(symbols)]
+    total = sum(max(1, int(src.duration * sy.voice.sample_rate))
+                for ph in phones for src in ph.sources)
+    return sy._formant_tracks(phones, total)[1]  # the F2 list
+
+
+def test_place_cues_the_vowel_transition():
+    # The whole point of the rewrite: the vowel's F2 trajectory differs by the consonant's
+    # place, because each consonant pulls the transition toward a different locus.
+    sy = synth(0)
+    f2_b = _f2_track(sy, "b a")  # bilabial: low F2 locus (~800)
+    f2_g = _f2_track(sy, "g a")  # velar: high F2 locus (~2000)
+    assert f2_b != f2_g
+    assert min(f2_b) < min(f2_g) - 200  # the bilabial transition dips much lower
 
 
 def test_determinism_is_per_call_on_one_instance():
