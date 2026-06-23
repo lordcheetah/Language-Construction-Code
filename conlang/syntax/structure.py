@@ -77,7 +77,14 @@ class Clause:
     object: NounPhrase | None = None
     tense: str = "pres"
     obliques: list[AdpositionalPhrase] = field(default_factory=list)
+    negated: bool = False
+    # Sentence type: "declarative", "interrogative" (yes/no question), or "imperative".
+    mood: str = "declarative"
 
     @property
     def is_transitive(self) -> bool:
         return self.object is not None
+
+    @property
+    def is_imperative(self) -> bool:
+        return self.mood == "imperative"

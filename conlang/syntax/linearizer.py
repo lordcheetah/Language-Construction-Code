@@ -29,7 +29,9 @@ from conlang.phonology.features import Segment
 from conlang.phonology.wordgen import Romanizer
 from conlang.morphology.features import FeatureBundle
 from conlang.morphology.generator import MorphologySystem
-from conlang.syntax.parameters import SyntaxParameters, Side, Adposition, Alignment
+from conlang.syntax.parameters import (
+    SyntaxParameters, Side, Adposition, Alignment, Negation, PolarQuestion,
+)
 from conlang.syntax.structure import Clause, NounPhrase, AdpositionalPhrase, Lexeme, Role
 
 
@@ -83,22 +85,29 @@ class Linearizer:
         params: SyntaxParameters,
         morphology: MorphologySystem,
         romanizer: Romanizer | None = None,
+        particles: dict[str, Lexeme] | None = None,
     ) -> None:
         self.params = params
         self.morphology = morphology
         self.romanizer = romanizer or Romanizer()
+        # Grammatical function words by role: "neg" (negator), "q" (yes/no marker).
+        self.particles = particles or {}
 
     # --- Public API ------------------------------------------------------------------
     def linearize(self, clause: Clause) -> Sentence:
         transitive = clause.is_transitive
-        subject_case = self._core_case(Role.SUBJECT, transitive)
         constituents: dict[str, list[GlossedWord]] = {
-            "S": self._noun_phrase(clause.subject, subject_case),
-            "V": [self._verb(clause)],
+            "V": self._verb_group(clause),
         }
+        # An imperative drops its (addressee) subject.
+        if not clause.is_imperative:
+            constituents["S"] = self._noun_phrase(
+                clause.subject, self._core_case(Role.SUBJECT, transitive)
+            )
         if transitive:
-            object_case = self._core_case(Role.OBJECT, transitive)
-            constituents["O"] = self._noun_phrase(clause.object, object_case)
+            constituents["O"] = self._noun_phrase(
+                clause.object, self._core_case(Role.OBJECT, transitive)
+            )
 
         words: list[GlossedWord] = []
         for slot in self.params.basic_order.sequence:
@@ -108,6 +117,7 @@ class Linearizer:
         # adposition order does follow the language's pre/postposition parameter.
         for pp in clause.obliques:
             words.extend(self._adpositional_phrase(pp))
+        words = self._mark_polar_question(clause, words)
         return Sentence(tuple(words))
 
     # --- Case / alignment ------------------------------------------------------------
@@ -156,6 +166,20 @@ class Linearizer:
             return [adp, *inner]
         return [*inner, adp]
 
+    def _verb_group(self, clause: Clause) -> list[GlossedWord]:
+        """The verb, plus a negative particle when negation isn't marked on the verb."""
+        verb = self._verb(clause)
+        if not clause.negated or self._verbal_negation(clause):
+            return [verb]  # verbal negation is already in the verb's bundle + gloss
+        neg = self._particle("neg", "NEG")
+        if neg is None:
+            # Negation can be realized neither on the verb nor as a particle; keep it
+            # visible in the gloss rather than silently dropping it.
+            return [GlossedWord(verb.roman, verb.ipa, verb.gloss + ".NEG")]
+        if self.params.negation is Negation.PARTICLE_AFTER_VERB:
+            return [verb, neg]
+        return [neg, verb]  # before the verb (also the fallback position)
+
     def _verb(self, clause: Clause) -> GlossedWord:
         # Agreement controller: the absolutive argument under ergative alignment (object of
         # a transitive, else subject), otherwise the subject (nominative).
@@ -163,11 +187,45 @@ class Linearizer:
             agr = clause.object
         else:
             agr = clause.subject
-        bundle = FeatureBundle.of(tense=clause.tense, person="3", number=agr.number)
-
+        # Imperative addresses the listener: 2nd person, number from the (dropped) subject.
+        person = "2" if clause.is_imperative else "3"
+        mood = "imperative" if clause.is_imperative else "indicative"
+        polarity = "negative" if self._verbal_negation(clause) else "affirmative"
+        bundle = FeatureBundle.of(
+            tense=clause.tense, person=person, number=agr.number,
+            mood=mood, polarity=polarity,
+        )
         marked = self._marked(clause.verb.word_class)
-        gloss = clause.verb.gloss + _verb_tags(marked, agr.number, clause.tense)
+        gloss = clause.verb.gloss + _verb_tags(
+            marked, person, agr.number, clause.tense, mood, polarity
+        )
         return self._inflected_word(clause.verb, bundle, gloss)
+
+    # --- Sentence-type helpers -------------------------------------------------------
+    def _verbal_negation(self, clause: Clause) -> bool:
+        if not clause.negated or "polarity" not in self._marked(clause.verb.word_class):
+            return False
+        # Mark on the verb when the language chose verbal negation, or as a fallback when
+        # no negator particle is available (so a VERBAL roll on a polarity-less verb still
+        # degrades gracefully to a particle elsewhere).
+        return self.params.negation is Negation.VERBAL or "neg" not in self.particles
+
+    def _mark_polar_question(self, clause: Clause, words: list[GlossedWord]) -> list[GlossedWord]:
+        if clause.mood != "interrogative":
+            return words
+        q = self._particle("q", "Q")
+        if q is None or self.params.polar_question is PolarQuestion.INTONATION:
+            return words  # intonation only: no overt marker
+        if self.params.polar_question is PolarQuestion.PARTICLE_INITIAL:
+            return [q, *words]
+        return [*words, q]  # clause-final
+
+    def _particle(self, key: str, gloss: str) -> GlossedWord | None:
+        lexeme = self.particles.get(key)
+        if lexeme is None:
+            return None
+        roman = self.romanizer.romanize([list(lexeme.root)])
+        return GlossedWord(roman, lexeme.ipa, gloss)
 
     # --- Inflection helper -----------------------------------------------------------
     def _inflected_word(self, lexeme: Lexeme, bundle: FeatureBundle, gloss: str) -> GlossedWord:
@@ -200,16 +258,20 @@ def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: st
     return "." + ".".join(tags) if tags else ""
 
 
-def _verb_tags(marked: set[str], number: str, tense: str) -> str:
-    """Agreement/tense gloss for the verb, gated on what the verb actually marks."""
+def _verb_tags(marked: set[str], person: str, number: str, tense: str, mood: str, polarity: str) -> str:
+    """Agreement/tense/mood/polarity gloss for the verb, gated on what it actually marks."""
     agr = ""
     if "person" in marked:
-        agr += "3"
+        agr += person
     if "number" in marked:
         agr += "PL" if number == "pl" else "SG"
     tags = [agr] if agr else []
     if "tense" in marked and tense and tense != "pres":
         tags.append(tense.upper())
+    if "mood" in marked and mood == "imperative":
+        tags.append("IMP")
+    if "polarity" in marked and polarity == "negative":
+        tags.append("NEG")
     return "." + ".".join(tags) if tags else ""
 
 

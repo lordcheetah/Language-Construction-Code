@@ -65,6 +65,22 @@ class Alignment(Enum):
     ERGATIVE_ABSOLUTIVE = "ergative-absolutive"
 
 
+class Negation(Enum):
+    """How a clause is negated."""
+
+    PARTICLE_BEFORE_VERB = "negative particle before the verb"
+    PARTICLE_AFTER_VERB = "negative particle after the verb"
+    VERBAL = "negative marked on the verb"  # uses the verb's polarity inflection
+
+
+class PolarQuestion(Enum):
+    """How a yes/no question is marked."""
+
+    PARTICLE_INITIAL = "question particle, clause-initial"
+    PARTICLE_FINAL = "question particle, clause-final"
+    INTONATION = "intonation only (no overt marker)"
+
+
 @dataclass(frozen=True)
 class SyntaxParameters:
     basic_order: WordOrder
@@ -73,6 +89,8 @@ class SyntaxParameters:
     genitive: Side        # possessor relative to head noun
     relative: Side        # relative clause relative to head noun
     alignment: Alignment
+    negation: Negation = Negation.PARTICLE_BEFORE_VERB
+    polar_question: PolarQuestion = PolarQuestion.PARTICLE_FINAL
 
     def describe(self) -> str:
         return (
@@ -81,7 +99,9 @@ class SyntaxParameters:
             f"  adjective:   {self.adjective.value} the noun\n"
             f"  genitive:    {self.genitive.value} the noun\n"
             f"  relative:    {self.relative.value} the noun\n"
-            f"  alignment:   {self.alignment.value}"
+            f"  alignment:   {self.alignment.value}\n"
+            f"  negation:    {self.negation.value}\n"
+            f"  questions:   {self.polar_question.value}"
         )
 
 
@@ -113,6 +133,24 @@ def derive_correlates(
             0.75, Alignment.NOMINATIVE_ACCUSATIVE, Alignment.ERGATIVE_ABSOLUTIVE
         )
 
+    # Both correlate with head-direction (Dryer): a question particle is clause-final in
+    # OV languages and clause-initial in VO ones; negation leans pre-verbal in VO, post-
+    # verbal in OV. Verbal negation is order-independent.
+    if basic_order.is_vo:
+        negation = rng.choices(
+            [Negation.PARTICLE_BEFORE_VERB, Negation.PARTICLE_AFTER_VERB, Negation.VERBAL],
+            weights=[0.45, 0.15, 0.40], k=1)[0]
+        polar_question = rng.choices(
+            [PolarQuestion.PARTICLE_INITIAL, PolarQuestion.PARTICLE_FINAL, PolarQuestion.INTONATION],
+            weights=[0.40, 0.25, 0.35], k=1)[0]
+    else:
+        negation = rng.choices(
+            [Negation.PARTICLE_BEFORE_VERB, Negation.PARTICLE_AFTER_VERB, Negation.VERBAL],
+            weights=[0.15, 0.45, 0.40], k=1)[0]
+        polar_question = rng.choices(
+            [PolarQuestion.PARTICLE_INITIAL, PolarQuestion.PARTICLE_FINAL, PolarQuestion.INTONATION],
+            weights=[0.10, 0.55, 0.35], k=1)[0]
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -120,4 +158,6 @@ def derive_correlates(
         genitive=genitive,
         relative=relative,
         alignment=alignment,
+        negation=negation,
+        polar_question=polar_question,
     )

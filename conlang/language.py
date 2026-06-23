@@ -38,7 +38,8 @@ from conlang.writing.system import WritingSystem
 # Bumped whenever a change to any stage alters what a given seed produces. Stored in
 # snapshots so a seed can be paired with the generator version that minted it.
 # v2: morphology gained inflection classes (changes RNG consumption and lexicon output).
-GENERATOR_VERSION = 2
+# v3: clause-level sentence types added negator/question particles to the lexicon.
+GENERATOR_VERSION = 3
 
 
 @dataclass
@@ -126,11 +127,14 @@ class Language:
         object_number: str = "sg",
         object_definiteness: str | None = None,
         tense: str = "pres",
+        negated: bool = False,
+        mood: str = "declarative",
     ) -> Sentence:
         """Build and inflect a clause from dictionary glosses, then linearize it.
 
         This is the whole stack in one call: the lexicon supplies the roots, the morphology
-        inflects them, and the syntax orders and case-marks them.
+        inflects them, and the syntax orders, case-marks, negates, and marks sentence type.
+        ``mood`` is "declarative", "interrogative" (yes/no question), or "imperative".
         """
         subj = NounPhrase(
             self._lexeme(subject, expect_pos="noun"),
@@ -145,8 +149,23 @@ class Language:
                 self._lexeme(obj, expect_pos="noun"),
                 number=object_number, definiteness=object_definiteness,
             )
-        clause = Clause(subj, self._lexeme(verb, expect_pos="verb"), obj_np, tense=tense)
-        return Linearizer(self.syntax, self.morphology, self.romanizer).linearize(clause)
+        clause = Clause(
+            subj, self._lexeme(verb, expect_pos="verb"), obj_np,
+            tense=tense, negated=negated, mood=mood,
+        )
+        linearizer = Linearizer(
+            self.syntax, self.morphology, self.romanizer, particles=self._particles()
+        )
+        return linearizer.linearize(clause)
+
+    def _particles(self) -> dict:
+        """The language's grammatical particles (negator, yes/no marker) as Lexemes."""
+        out = {}
+        for key, gloss in (("neg", "not"), ("q", "Q")):
+            entry = self.lexicon.get(gloss)
+            if entry is not None:
+                out[key] = Lexeme(entry.form, "particle", gloss, entry.inflection_class)
+        return out
 
     def speak(self, word: Word, *, voice=None, rng: random.Random | None = None) -> list[float]:
         """Synthesize a word to audio samples (in [-1, 1]).

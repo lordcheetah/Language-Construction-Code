@@ -68,7 +68,9 @@ def test_passing_grade_boundary():
 def test_deck_has_two_cards_per_word_ordered_by_basicness():
     lang = Language.generate(7)
     deck = build_deck(lang)
-    assert len(deck) == 2 * len(CONCEPTS)
+    teachable = [c for c in CONCEPTS if c.pos != "particle"]  # particles aren't drilled
+    assert len(deck) == 2 * len(teachable)
+    assert all(card.pos != "particle" for card in deck)
     recognitions = [c for c in deck if c.direction is Direction.RECOGNITION]
     basics = [_basicness(lang, c.gloss) for c in recognitions]
     assert basics == sorted(basics, reverse=True)  # most basic first

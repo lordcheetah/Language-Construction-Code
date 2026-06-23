@@ -214,13 +214,15 @@ def cmd_syntax(args) -> int:
     sandhi = RuleSet.parse(_DEMO_RULES) if args.sandhi else None
     morphology = random_system(phono, rng, romanizer=romanizer, sandhi=sandhi)
     params = random_syntax(rng)
-    lin = Linearizer(params, morphology, romanizer)
 
     nouns = _build_lexicon(gen, rng, _NOUN_GLOSSES, "noun")
     tverbs = _build_lexicon(gen, rng, _TVERB_GLOSSES, "verb")
     iverbs = _build_lexicon(gen, rng, _IVERB_GLOSSES, "verb")
     adjs = _build_lexicon(gen, rng, _ADJ_GLOSSES, "adjective")
     adps = _build_lexicon(gen, rng, _ADP_GLOSSES, "adposition")
+    particle_lex = _build_lexicon(gen, rng, ["not", "Q"], "particle")
+    particles = {"neg": particle_lex["not"], "q": particle_lex["Q"]}
+    lin = Linearizer(params, morphology, romanizer, particles=particles)
 
     print("Syntax parameters:")
     print(params.describe())
@@ -248,20 +250,44 @@ def cmd_syntax(args) -> int:
                 AdpositionalPhrase(adps["near"], NounPhrase(nouns["river"], definiteness="def"), "near")
             ],
         ),
+        # Sentence types: negation, a yes/no question, and an imperative.
+        Clause(NounPhrase(nouns["dog"], definiteness="def"), iverbs["sleep"], negated=True),
+        Clause(
+            NounPhrase(nouns["woman"], definiteness="def"),
+            tverbs["see"], NounPhrase(nouns["bird"], definiteness="indef"),
+            mood="interrogative",
+        ),
+        Clause(NounPhrase(nouns["child"]), tverbs["carry"], NounPhrase(nouns["stone"]),
+               mood="imperative"),
     ]
 
     print("\nSample sentences:")
     for clause in clauses:
         sentence = lin.linearize(clause)
-        english = clause.subject.gloss + " " + clause.verb.gloss
-        if clause.object is not None:
-            english += " " + clause.object.gloss
-        for pp in clause.obliques:
-            english += f" {pp.relation} {pp.np.gloss}"
+        english = _english_gloss(clause)
         print(f"\n  “{english}”")
         for line in sentence.interlinear().splitlines():
             print(f"    {line}")
     return 0
+
+
+def _english_gloss(clause) -> str:
+    parts = []
+    if clause.mood != "imperative":
+        parts.append(clause.subject.gloss)
+    if clause.negated:
+        parts.append("not")
+    parts.append(clause.verb.gloss)
+    if clause.object is not None:
+        parts.append(clause.object.gloss)
+    for pp in clause.obliques:
+        parts.append(f"{pp.relation} {pp.np.gloss}")
+    text = " ".join(parts)
+    if clause.mood == "interrogative":
+        text += "?"
+    elif clause.mood == "imperative":
+        text += "!"
+    return text
 
 
 def cmd_lexicon(args) -> int:

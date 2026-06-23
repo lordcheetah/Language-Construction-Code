@@ -47,8 +47,10 @@ def build_deck(language) -> list[Card]:
     immediately afterward — recognition is learned first, and production isn't trivially
     primed by having just seen the answer.
     """
+    # Grammatical particles (the negator, the question marker) aren't taught as vocabulary.
     entries = sorted(
-        language.lexicon.entries.values(), key=lambda e: -e.concept.basicness
+        (e for e in language.lexicon.entries.values() if e.concept.pos != "particle"),
+        key=lambda e: -e.concept.basicness,
     )
 
     def card(entry, direction: Direction) -> Card:

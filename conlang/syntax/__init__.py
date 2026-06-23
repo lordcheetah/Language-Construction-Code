@@ -24,6 +24,8 @@ from conlang.syntax.parameters import (
     Side,
     Adposition,
     Alignment,
+    Negation,
+    PolarQuestion,
     derive_correlates,
 )
 from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Role
@@ -36,6 +38,8 @@ __all__ = [
     "Side",
     "Adposition",
     "Alignment",
+    "Negation",
+    "PolarQuestion",
     "derive_correlates",
     "Lexeme",
     "NounPhrase",

@@ -16,6 +16,8 @@ from conlang.syntax.parameters import (
     Side,
     Adposition,
     Alignment,
+    Negation,
+    PolarQuestion,
     SyntaxParameters,
     derive_correlates,
 )
@@ -121,6 +123,87 @@ def test_adjective_placement_follows_parameter():
     # No adjective paradigm -> adjective surfaces as its bare root /ra/.
     assert forms(after.linearize(clause))[:2] == ["mi", "ra"]
     assert forms(before.linearize(clause))[:2] == ["ra", "mi"]
+
+
+# --- Sentence types: negation, questions, imperative --------------------------------
+NEG = lex("n a", "particle", "not")
+QPART = lex("k a", "particle", "Q")
+_PARTICLES = {"neg": NEG, "q": QPART}
+
+
+def _lin(system=None, **param_kw):
+    return Linearizer(_params(**param_kw), system or _system(), particles=_PARTICLES)
+
+
+def test_negation_with_a_particle_before_or_after_the_verb():
+    clause = Clause(NounPhrase(WOMAN), SEE, negated=True)
+    before = forms(_lin(negation=Negation.PARTICLE_BEFORE_VERB).linearize(clause))
+    after = forms(_lin(negation=Negation.PARTICLE_AFTER_VERB).linearize(clause))
+    assert before == ["mi", "na", "ta"]   # neg directly before the verb
+    assert after == ["mi", "ta", "na"]     # neg directly after the verb
+
+
+def test_verbal_negation_marks_the_verb_not_a_particle():
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (CATEGORIES["polarity"],))
+    verb.agglutinative_affixes[("polarity", "negative")] = Affix(
+        (data.consonant("n"),), Position.SUFFIX, FeatureBundle.of(polarity="negative"), "NEG"
+    )
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {"verb": verb})
+    sent = _lin(system, negation=Negation.VERBAL).linearize(
+        Clause(NounPhrase(WOMAN), SEE, negated=True)
+    )
+    assert "na" not in forms(sent)                     # no separate negator particle
+    assert any(w.ipa == "tan" for w in sent.words)     # see + negative suffix
+    assert any("NEG" in w.gloss for w in sent.words)
+
+
+def test_polar_question_particle_position():
+    clause = Clause(NounPhrase(WOMAN), SEE, mood="interrogative")
+    final = forms(_lin(polar_question=PolarQuestion.PARTICLE_FINAL).linearize(clause))
+    initial = forms(_lin(polar_question=PolarQuestion.PARTICLE_INITIAL).linearize(clause))
+    inton = forms(_lin(polar_question=PolarQuestion.INTONATION).linearize(clause))
+    assert final[-1] == "ka" and initial[0] == "ka"
+    assert "ka" not in inton  # intonation-only: no overt marker
+
+
+def test_verbal_strategy_falls_back_to_a_particle_without_polarity_marking():
+    # The language "chose" verbal negation but its verb doesn't mark polarity -> particle.
+    clause = Clause(NounPhrase(WOMAN), SEE, negated=True)
+    forms_out = forms(_lin(negation=Negation.VERBAL).linearize(clause))  # _system() lacks polarity
+    assert "na" in forms_out  # the negator particle is used as a fallback
+
+
+def test_negation_is_never_silently_lost():
+    # No verbal polarity and no particle supplied: negation must still show in the gloss.
+    lin = Linearizer(_params(negation=Negation.PARTICLE_BEFORE_VERB), _system())  # no particles
+    sent = lin.linearize(Clause(NounPhrase(WOMAN), SEE, negated=True))
+    assert any("NEG" in w.gloss for w in sent.words)
+
+
+def test_declarative_affirmative_is_unchanged():
+    # Adding mood/polarity to the verb bundle must not alter a plain declarative.
+    lin = _lin()
+    plain = forms(lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))))
+    assert plain == ["mi", "ta", "pon"]  # same as the basic SVO transitive result
+
+
+def test_negation_and_question_combine():
+    clause = Clause(NounPhrase(WOMAN), SEE, negated=True, mood="interrogative")
+    out = forms(_lin(negation=Negation.PARTICLE_AFTER_VERB,
+                     polar_question=PolarQuestion.PARTICLE_FINAL).linearize(clause))
+    assert "na" in out and out[-1] == "ka"  # both a negator and a clause-final Q
+
+
+def test_imperative_drops_the_subject_and_is_second_person():
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (CATEGORIES["person"],))
+    verb.agglutinative_affixes[("person", "2")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(person="2"), "2"
+    )
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {"verb": verb})
+    sent = _lin(system).linearize(Clause(NounPhrase(WOMAN), SEE, mood="imperative"))
+    assert len(sent.words) == 1                       # subject dropped, just the verb
+    assert sent.words[0].ipa == "tau"                 # see + 2nd-person suffix
+    assert "2" in sent.words[0].gloss
 
 
 # --- Graceful when the language marks little ----------------------------------------
@@ -234,6 +317,23 @@ def test_random_syntax_reproducible():
     a = random_syntax(random.Random(7))
     b = random_syntax(random.Random(7))
     assert a == b
+
+
+def test_sentence_type_params_are_deterministic():
+    a = derive_correlates(WordOrder.SOV, random.Random(0))
+    b = derive_correlates(WordOrder.SOV, random.Random(0))
+    assert (a.negation, a.polar_question) == (b.negation, b.polar_question)
+
+
+def test_question_position_correlates_with_word_order():
+    # VO languages lean toward clause-initial Q particles; OV toward clause-final.
+    vo_initial = sum(
+        derive_correlates(WordOrder.SVO, random.Random(s)).polar_question
+        is PolarQuestion.PARTICLE_INITIAL for s in range(200))
+    ov_final = sum(
+        derive_correlates(WordOrder.SOV, random.Random(s)).polar_question
+        is PolarQuestion.PARTICLE_FINAL for s in range(200))
+    assert vo_initial > 50 and ov_final > 80  # the leanings hold in aggregate
 
 
 def test_vo_languages_tend_prepositional():

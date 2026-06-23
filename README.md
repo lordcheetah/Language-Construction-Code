@@ -74,11 +74,14 @@ rather than affixes), extra number values (dual/paucal) and clusivity, zero-deri
 ### Deferred (Stage 4 "advanced" backlog)
 
 Syntax models constituent order, harmonic correlates, alignment (with a two-way
-core-case simplification), subject/absolutive agreement, intra-NP modifier order, and
-adpositional phrases. Still to build: relative clauses, clause-level negation and
-questions, verb-second, pro-drop, object agreement and differential object marking,
-free-word articles, coordination, and ditransitives. Oblique phrases are currently placed
-clause-finally rather than by a positional parameter.
+core-case simplification), subject/absolutive agreement, intra-NP modifier order,
+adpositional phrases, and — added since the first pass — **clause-level sentence types**:
+negation (a verbal marker or a negator particle), polar (yes/no) questions (a clause-
+initial/final particle or intonation), and imperatives (subject dropped, 2nd person),
+with the strategy harmonically tied to word order. Still to build: relative clauses,
+content (wh-) questions, verb-second, pro-drop, object agreement and differential object
+marking, free-word articles, coordination, and ditransitives. Oblique phrases are still
+placed clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

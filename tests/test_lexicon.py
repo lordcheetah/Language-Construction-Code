@@ -44,7 +44,7 @@ def test_concept_basicness_in_range_and_fields_known():
     for c in CONCEPTS:
         assert 0.0 <= c.basicness <= 1.0
         assert c.field in fields
-        assert c.pos in ("noun", "verb", "adjective")
+        assert c.pos in ("noun", "verb", "adjective", "particle")
 
 
 def test_relational_tables_reference_known_concepts():
