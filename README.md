@@ -91,6 +91,12 @@ critiques each module for both linguistic accuracy and code quality before it's 
 
 ```bash
 pip install -e .
+
+# Roll a COMPLETE language (all six stages) from one seed — the push-button entry point
+python -m conlang generate --seed 42
+python -m conlang generate --seed 42 --out out   # + write the native script as SVG
+python -m conlang generate --json                # JSON snapshot (a language = its seed)
+
 python -m conlang phonology --random            # roll a random plausible inventory + words
 python -m conlang phonology --random --seed 42  # reproducible
 
@@ -146,6 +152,7 @@ conlang/
     featural.py      # deterministic featural glyph from a segment's features
     system.py        # WritingSystem (alphabet/abjad/abugida/syllabary); word + chart SVG
     generator.py     # roll a script type + per-language style
+  language.py        # the Language aggregate: all six stages in one object + generate(seed)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```

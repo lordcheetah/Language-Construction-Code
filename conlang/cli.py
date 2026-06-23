@@ -26,6 +26,20 @@ from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Etymology
 from conlang.writing.generator import build_writing_system
 from conlang.writing.system import WritingSystemType
+from conlang.language import Language
+
+# Sample sentences for the `generate` showcase (glosses must exist in the lexicon).
+_SHOWCASE_SENTENCES = [
+    ("the woman sees a bird",
+     dict(subject="woman", verb="see", obj="bird",
+          subject_definiteness="def", object_definiteness="indef")),
+    ("the children run",
+     dict(subject="child", verb="run", subject_number="pl", subject_definiteness="def")),
+    ("the big dog eats meat",
+     dict(subject="dog", verb="eat", obj="meat",
+          subject_adjective="big", subject_definiteness="def")),
+]
+_SHOWCASE_VOCAB = ["I", "water", "fire", "sun", "woman", "eye", "tree", "see", "eat", "big", "one"]
 
 # Small English gloss banks so generated sentences can be read interlinearly.
 _NOUN_GLOSSES = ["dog", "woman", "stone", "river", "bird", "child", "fire", "tree"]
@@ -306,6 +320,53 @@ def cmd_writing(args) -> int:
     return 0
 
 
+def cmd_generate(args) -> int:
+    import json
+    import os
+
+    sandhi = RuleSet.parse(_DEMO_RULES) if args.sandhi else None
+    lang = Language.generate(args.seed, sandhi=sandhi)
+
+    if args.json:
+        print(json.dumps(lang.to_dict(), ensure_ascii=False, indent=2))
+        return 0
+
+    seed_label = args.seed if args.seed is not None else "random"
+    print(f"# A constructed language (seed: {seed_label})\n")
+    print(lang.summary())
+
+    if args.dictionary:
+        print("\n" + lang.lexicon.glossary())
+    else:
+        print("\nSample vocabulary:")
+        for gloss in _SHOWCASE_VOCAB:
+            e = lang.lexicon.get(gloss)
+            if e:
+                print(f"  {gloss:<8} {e.roman} /{e.ipa}/")
+
+    print("\nSample sentences:")
+    for english, kw in _SHOWCASE_SENTENCES:
+        try:
+            sentence = lang.make_sentence(**kw)
+        except KeyError:
+            continue
+        print(f"\n  “{english}”")
+        for line in sentence.interlinear().splitlines():
+            print(f"    {line}")
+
+    if args.out:
+        os.makedirs(args.out, exist_ok=True)
+        chart_path = os.path.join(args.out, "chart.svg")
+        word_path = os.path.join(args.out, "word.svg")
+        sample = lang.lexicon.get("woman") or next(iter(lang.lexicon.entries.values()))
+        with open(chart_path, "w", encoding="utf-8") as fh:
+            fh.write(lang.writing.chart_svg())
+        with open(word_path, "w", encoding="utf-8") as fh:
+            fh.write(lang.writing.word_svg(list(sample.form)))
+        print(f"\nWrote script -> {chart_path}, {word_path} (the word for '{sample.gloss}')")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -387,6 +448,17 @@ def build_parser() -> argparse.ArgumentParser:
     w.add_argument("--out", default="out", help="output directory for SVG files (default out/)")
     w.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     w.set_defaults(func=cmd_writing)
+
+    g = sub.add_parser(
+        "generate",
+        help="roll a complete language (all six stages) and show a full overview",
+    )
+    g.add_argument("--sandhi", action="store_true", help="apply sound changes at morpheme boundaries")
+    g.add_argument("--dictionary", action="store_true", help="print the full glossary by field")
+    g.add_argument("--json", action="store_true", help="emit a JSON snapshot instead of the overview")
+    g.add_argument("--out", help="also write the native script (chart.svg, word.svg) to this dir")
+    g.add_argument("--seed", type=int, default=None, help="seed (a language is fully determined by it)")
+    g.set_defaults(func=cmd_generate)
     return parser
 
 

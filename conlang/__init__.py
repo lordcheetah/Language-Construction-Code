@@ -6,3 +6,7 @@ frequency data. See README.md for the design philosophy and roadmap.
 """
 
 __version__ = "0.1.0"
+
+from conlang.language import Language
+
+__all__ = ["Language"]
