@@ -97,10 +97,12 @@ clause-finally rather than by a positional parameter.
 The lexicon builds a semantic-field dictionary with colexification, derivation, and
 compounding, sized by Zipf's law of abbreviation, plus a **numeral system** (a rolled base
 — decimal/vigesimal/quinary/duodecimal — with words composed past five, e.g. "two-ten-four"
-= 24, order tied to head-direction). Still to add: irregular teens / suppletive numerals
-and sub-bases, richer kinship-system structure, antonym pairs sharing morphology, polysemy
-networks (chains, not just binary colexification), suppletion in basic vocabulary, semantic
-shift tied to sound change, and loanword strata / register.
+= 24, order tied to head-direction), and **antonyms that share morphology** (an
+opposite-forming adjective affix derives the marked pole of a polar pair — bad/small/cold —
+from the unmarked one when the language has it, otherwise each pole is a suppletive root).
+Still to add: irregular teens / suppletive numerals and sub-bases, richer kinship-system
+structure, polysemy networks (chains, not just binary colexification), suppletion in basic
+vocabulary, semantic shift tied to sound change, and loanword strata / register.
 
 ### Deferred (Stage 6 "advanced" backlog)
 

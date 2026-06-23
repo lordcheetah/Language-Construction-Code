@@ -131,6 +131,50 @@ def test_derivation_falls_back_to_root_without_affix():
     assert lex.get("hunter").etymology is Etymology.ROOT
 
 
+def test_antonym_derivation_relates_polar_pairs():
+    # When the language has an opposite-forming affix, the marked pole of an antonym pair is
+    # derived from the unmarked one (so the pair shares morphology): bad = opposite-of-good.
+    anton = DerivationRule(
+        Affix((data.consonant("m"),), Position.PREFIX, FeatureBundle.of(), "ANTONYM"),
+        from_class="adjective", to_class="adjective", gloss="ANTONYM",
+    )
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [anton])
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=system)
+    for marked, base in (("bad", "good"), ("small", "big"), ("cold", "hot")):
+        entry = lex.get(marked)
+        assert entry.etymology is Etymology.DERIVED
+        assert entry.ipa == "m" + lex.get(base).ipa   # prefix opposite-marker
+        assert base in entry.note
+
+
+def test_antonyms_are_independent_roots_without_the_affix():
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=None)  # no derivational affixes
+    bad, good = lex.get("bad"), lex.get("good")
+    assert bad.etymology is Etymology.ROOT
+    assert bad.ipa != good.ipa  # an unrelated, suppletive antonym
+
+
+def test_antonym_affix_is_reachable_from_a_generated_morphology():
+    # The opposite-forming affix is in the template pool, so some seed rolls it organically;
+    # the dictionary then shows the antonym derived end-to-end (not just with injected rules).
+    from conlang.morphology.generator import random_system
+
+    found = False
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        if not any(r.gloss == "ANTONYM" for r in system.derivations):
+            continue
+        lex = build_lexicon(phono, random.Random(seed), morphology=system)
+        if lex.get("bad").etymology is Etymology.DERIVED:
+            assert "good" in lex.get("bad").note
+            found = True
+            break
+    assert found, "no seed in range organically rolled the antonym derivation"
+
+
 def test_having_and_diminutive_derivation_paths():
     having = DerivationRule(
         Affix((data.consonant("l"),), Position.SUFFIX, FeatureBundle.of(), "HAVING"),

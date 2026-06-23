@@ -42,6 +42,9 @@ _DERIVATION_TEMPLATES = [
     ("noun", "adjective", "HAVING"),
     ("adjective", "verb", "BECOME"),
     ("noun", "noun", "DIMINUTIVE"),
+    # An antonym/opposite-forming affix (like English un-/dis-, Esperanto mal-): derives the
+    # marked pole of a polar adjective pair from the unmarked one (bad = opposite-of-good).
+    ("adjective", "adjective", "ANTONYM"),
 ]
 
 

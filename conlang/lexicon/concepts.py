@@ -134,6 +134,12 @@ DERIVATIONS: list[tuple[str, str, str, str, str]] = [
     ("hunt", "hunter", "AGENT", "verb", "noun"),
     ("stone", "stony", "HAVING", "noun", "adjective"),
     ("dog", "puppy", "DIMINUTIVE", "noun", "noun"),
+    # Antonyms by an opposite-forming affix: the marked pole of a polar pair derived from
+    # the unmarked one, so the pair shares morphology (when the language lacks the affix
+    # each stays an independent, suppletive root).
+    ("good", "bad", "ANTONYM", "adjective", "adjective"),
+    ("big", "small", "ANTONYM", "adjective", "adjective"),
+    ("hot", "cold", "ANTONYM", "adjective", "adjective"),
 ]
 
 # Compounding: (product, (part1, part2)). The product's form is the parts' forms joined.
