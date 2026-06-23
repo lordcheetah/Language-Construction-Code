@@ -27,7 +27,7 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 | 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | **done** |
 | 4. Syntax         | `conlang.syntax` — word order, alignment, glossed sentences     | **done** |
 | 5. Lexicon        | `conlang.lexicon` — vocabulary, semantic fields, etymology      | **done** |
-| 6. Orthography    | `conlang.writing` — romanization, glyph/pictogram generation    | planned |
+| 6. Orthography    | `conlang.writing` — featural SVG glyphs, 4 script types         | **done** |
 
 ### Capstone applications (after the engine stages)
 
@@ -74,6 +74,13 @@ structure, numeral base systems (built compositionally past five), antonym pairs
 morphology, polysemy networks (chains, not just binary colexification), suppletion in
 basic vocabulary, semantic shift tied to sound change, and loanword strata / register.
 
+### Deferred (Stage 6 "advanced" backlog)
+
+The writing system generates featural SVG glyphs for four script types. Still to add:
+numeral and punctuation glyphs, ligatures/positional forms, explicit cluster stacking
+(beyond the coda virama), connecting/cursive strokes, and right-to-left or vertical
+layout direction. True logographic/pictographic scripts are a separate, larger effort.
+
 ## How this is built
 
 Development uses a **plan → execute → review** loop with Claude subagents: an
@@ -100,6 +107,10 @@ python -m conlang syntax --seed 8
 
 # Generate a dictionary by semantic field, with colexification/derivation/compounds
 python -m conlang lexicon --seed 8
+
+# Generate a native script as SVG (featural glyphs) -> out/chart.svg, out/word.svg
+python -m conlang writing --seed 8
+python -m conlang writing --seed 3 --type abugida
 ```
 
 ## Layout
@@ -130,6 +141,11 @@ conlang/
     concepts.py      # semantic-field concept inventory + colexification/derivation/compounds
     lexicon.py       # LexicalEntry (etymology) + Lexicon container (lookups, glossary)
     generator.py     # coin roots (Zipf length), colexify, derive, compound
+  writing/
+    glyph.py         # stroke primitives (line/path/circle) + Glyph -> SVG
+    featural.py      # deterministic featural glyph from a segment's features
+    system.py        # WritingSystem (alphabet/abjad/abugida/syllabary); word + chart SVG
+    generator.py     # roll a script type + per-language style
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```

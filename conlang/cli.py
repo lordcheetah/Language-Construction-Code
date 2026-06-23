@@ -24,6 +24,8 @@ from conlang.syntax.linearizer import Linearizer
 from conlang.syntax.structure import Lexeme, NounPhrase, Clause, AdpositionalPhrase
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Etymology
+from conlang.writing.generator import build_writing_system
+from conlang.writing.system import WritingSystemType
 
 # Small English gloss banks so generated sentences can be read interlinearly.
 _NOUN_GLOSSES = ["dog", "woman", "stone", "river", "bird", "child", "fire", "tree"]
@@ -267,6 +269,43 @@ def cmd_lexicon(args) -> int:
     return 0
 
 
+def cmd_writing(args) -> int:
+    import os
+
+    rng = random.Random(args.seed)
+    args.random = not args.inventory
+    inv, phono = _build_phonology(args, rng)
+    gen = WordGenerator(phono, Romanizer())
+
+    wtype = WritingSystemType(args.type) if args.type else None
+    ws = build_writing_system(inv, rng, wtype=wtype)
+
+    print(inv.summary())
+    print()
+    print(ws.summary())
+    print(
+        f"  style: stroke {ws.style.stroke_width}, slant {ws.style.slant}°, "
+        f"voicing mark = {ws.style.voiced_mark}"
+    )
+
+    word = gen.word(rng, min_syllables=2, max_syllables=3)
+    segments = [s for syl in word.syllables for s in syl]
+
+    out_dir = args.out
+    os.makedirs(out_dir, exist_ok=True)
+    chart_path = os.path.join(out_dir, "chart.svg")
+    word_path = os.path.join(out_dir, "word.svg")
+    with open(chart_path, "w", encoding="utf-8") as fh:
+        fh.write(ws.chart_svg())
+    with open(word_path, "w", encoding="utf-8") as fh:
+        fh.write(ws.word_svg(segments))
+
+    print(f"\nSample word: {word.roman} /{word.ipa}/")
+    print(f"Wrote glyph chart -> {chart_path}")
+    print(f"Wrote sample word -> {word_path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -333,6 +372,21 @@ def build_parser() -> argparse.ArgumentParser:
     x.add_argument("--sandhi", action="store_true", help="apply demo sound changes at boundaries")
     x.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     x.set_defaults(func=cmd_lexicon)
+
+    w = sub.add_parser(
+        "writing",
+        help="generate a native script (SVG glyph chart + sample word)",
+    )
+    w.add_argument("--inventory", help="explicit IPA inventory (else random)")
+    w.add_argument("--templates", help="comma-separated syllable templates")
+    w.add_argument(
+        "--type",
+        choices=[t.value for t in WritingSystemType],
+        help="force a script type (else rolled)",
+    )
+    w.add_argument("--out", default="out", help="output directory for SVG files (default out/)")
+    w.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    w.set_defaults(func=cmd_writing)
     return parser
 
 
