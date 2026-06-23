@@ -41,8 +41,11 @@ These sit on top of the whole engine and ship last:
   teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
   random one) and watch a `Language` take shape, ending with a sample sentence and the seed
   to reproduce it. The flow logic is I/O-free, so it is fully testable.
-- **Teaching app** *(the big one)* — learn a *generated* conlang: lessons, flashcards,
-  and spaced repetition built from the language's phonology, lexicon, and grammar.
+- **Teaching app** *(done)* — `conlang.teach`: learn a *generated* conlang with a
+  spaced-repetition vocabulary trainer. Every dictionary word becomes flashcards in both
+  directions, scheduled by the SM-2 algorithm and quizzed as multiple choice, with grammar
+  notes and a worked example each session. Progress persists as JSON keyed by the seed (the
+  language is recovered from it), so you can resume across days.
 
 ### Deferred (Stage 2 "advanced" backlog)
 
@@ -129,6 +132,9 @@ python -m conlang speak --seed 42 --gloss water --out out/water.wav
 # Learn to build a language with the interactive, guided tutorial
 python -m conlang tutorial
 python -m conlang tutorial --demo --seed 7   # non-interactive walkthrough
+
+# Learn a generated language with spaced-repetition vocabulary drills (resumable)
+python -m conlang learn --seed 42
 ```
 
 ## Layout
@@ -172,6 +178,12 @@ conlang/
     content.py       # the teaching steps (LCK lessons) + choices
     session.py       # pure flow logic (no I/O, testable)
     runner.py        # interactive prompt + non-interactive demo
+  teach/
+    srs.py           # SM-2 spaced-repetition scheduler
+    cards.py         # flashcards + deck built from a language (frequent first)
+    course.py        # due selection, new cards, multiple-choice questions (pure logic)
+    progress.py      # save/load review state as JSON (keyed by seed)
+    runner.py        # interactive study session
   language.py        # the Language aggregate: all six stages in one object + generate(seed)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite

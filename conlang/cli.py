@@ -33,6 +33,9 @@ from conlang.tutorial.builder import LanguageBuilder
 from conlang.tutorial.content import build_steps
 from conlang.tutorial.session import TutorialSession
 from conlang.tutorial.runner import run_interactive, run_demo
+from conlang.teach.course import Course
+from conlang.teach.progress import load_course, save_course
+from conlang.teach.runner import run_session as run_study_session
 
 # Sample sentences for the `generate` showcase (glosses must exist in the lexicon).
 _SHOWCASE_SENTENCES = [
@@ -421,6 +424,41 @@ def cmd_tutorial(args) -> int:
     return 0
 
 
+def cmd_learn(args) -> int:
+    import os
+    from datetime import date
+
+    today = args.day if args.day is not None else date.today().toordinal()
+    new_per_day = args.new if args.new is not None else 8
+
+    if args.save and os.path.exists(args.save):
+        try:
+            course = load_course(args.save)
+        except ValueError as exc:
+            raise SystemExit(f"learn: cannot resume {args.save}: {exc}")
+        path = args.save
+        if args.seed is not None and args.seed != course.language.seed:
+            print(f"(note: {args.save} holds seed {course.language.seed}; ignoring --seed {args.seed})")
+        if args.new is not None:  # let an explicit --new change the daily budget on resume
+            course.new_per_day = args.new
+    else:
+        seed = args.seed if args.seed is not None else random.Random().randrange(2**63)
+        course = Course(Language.generate(seed), new_per_day=new_per_day)
+        path = args.save or os.path.join("out", f"learn-{course.language.seed}.json")
+
+    print(f"Learning the language with seed {course.language.seed}.\n")
+    rng = random.Random(((course.language.seed or 0) ^ today) & (2**63 - 1))
+    run_study_session(course, today, rng=rng, max_cards=args.max)
+
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    save_course(course, path)
+    print(f"Progress saved -> {path}")
+    print(f"Resume any time:  python -m conlang learn --save {path}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -533,6 +571,17 @@ def build_parser() -> argparse.ArgumentParser:
     tut.add_argument("--demo", action="store_true", help="play through non-interactively (random choices)")
     tut.add_argument("--seed", type=int, default=None, help="seed for reproducible choices")
     tut.set_defaults(func=cmd_tutorial)
+
+    ln = sub.add_parser(
+        "learn",
+        help="learn a generated language with spaced-repetition vocabulary drills",
+    )
+    ln.add_argument("--seed", type=int, default=None, help="which language to learn (new course)")
+    ln.add_argument("--save", help="progress file (resumes if it exists; default out/learn-<seed>.json)")
+    ln.add_argument("--new", type=int, default=None, help="new cards to introduce per session (default 8)")
+    ln.add_argument("--max", type=int, default=20, help="max cards to review this session (default 20)")
+    ln.add_argument("--day", type=int, default=None, help="override today's day number (testing)")
+    ln.set_defaults(func=cmd_learn)
     return parser
 
 
