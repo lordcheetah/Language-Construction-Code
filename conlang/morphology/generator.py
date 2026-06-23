@@ -90,16 +90,18 @@ def random_system(
     romanizer: Romanizer | None = None,
     sandhi: object | None = None,
     classes: tuple[str, ...] = ("noun", "verb", "adjective"),
+    typology: Typology | None = None,
 ) -> MorphologySystem:
     rng = rng or random.Random()
     romanizer = romanizer or Romanizer()
     inventory = phonotactics.inventory
 
-    typology = rng.choices(
-        [Typology.AGGLUTINATIVE, Typology.FUSIONAL, Typology.ISOLATING],
-        weights=[0.45, 0.35, 0.20],
-        k=1,
-    )[0]
+    if typology is None:
+        typology = rng.choices(
+            [Typology.AGGLUTINATIVE, Typology.FUSIONAL, Typology.ISOLATING],
+            weights=[0.45, 0.35, 0.20],
+            k=1,
+        )[0]
     # Suffixing is cross-linguistically dominant; pick a per-language bias.
     dominant = Position.SUFFIX if rng.random() < 0.7 else Position.PREFIX
 

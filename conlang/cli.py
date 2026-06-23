@@ -29,6 +29,10 @@ from conlang.writing.system import WritingSystemType
 from conlang.language import Language
 from conlang.phonology import data as _phon_data
 from conlang.speech.synth import Synthesizer, Voice
+from conlang.tutorial.builder import LanguageBuilder
+from conlang.tutorial.content import build_steps
+from conlang.tutorial.session import TutorialSession
+from conlang.tutorial.runner import run_interactive, run_demo
 
 # Sample sentences for the `generate` showcase (glosses must exist in the lexicon).
 _SHOWCASE_SENTENCES = [
@@ -408,6 +412,15 @@ def cmd_speak(args) -> int:
     return 0
 
 
+def cmd_tutorial(args) -> int:
+    session = TutorialSession(LanguageBuilder.start(args.seed), build_steps())
+    if args.demo:
+        run_demo(session)
+    else:
+        run_interactive(session)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -512,6 +525,14 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--rate", type=float, default=1.0, help="speech speed multiplier (default 1.0)")
     sp.add_argument("--seed", type=int, default=None, help="seed for the language and noise")
     sp.set_defaults(func=cmd_speak)
+
+    tut = sub.add_parser(
+        "tutorial",
+        help="an interactive, guided walkthrough that teaches you to build a language",
+    )
+    tut.add_argument("--demo", action="store_true", help="play through non-interactively (random choices)")
+    tut.add_argument("--seed", type=int, default=None, help="seed for reproducible choices")
+    tut.set_defaults(func=cmd_tutorial)
     return parser
 
 

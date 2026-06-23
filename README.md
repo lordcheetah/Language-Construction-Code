@@ -37,8 +37,10 @@ These sit on top of the whole engine and ship last:
   synthesizer. It reads the same phonological features the engine uses (vowel
   height/backness → formants, consonant manner → buzz/noise/burst, voicing → glottal
   source) and writes a 16-bit WAV. Robotic but real, offline, and deterministic.
-- **Tutorial** — an interactive, guided walkthrough that teaches a user to *create* a
-  language, driving the engine stage by stage.
+- **Tutorial** *(done)* — `conlang.tutorial`: an interactive, guided walkthrough that
+  teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
+  random one) and watch a `Language` take shape, ending with a sample sentence and the seed
+  to reproduce it. The flow logic is I/O-free, so it is fully testable.
 - **Teaching app** *(the big one)* — learn a *generated* conlang: lessons, flashcards,
   and spaced repetition built from the language's phonology, lexicon, and grammar.
 
@@ -123,6 +125,10 @@ python -m conlang writing --seed 3 --type abugida
 # Speak a word with the built-in formant synthesizer -> a WAV file
 python -m conlang speak --ipa "p a t a k a" --out out/word.wav
 python -m conlang speak --seed 42 --gloss water --out out/water.wav
+
+# Learn to build a language with the interactive, guided tutorial
+python -m conlang tutorial
+python -m conlang tutorial --demo --seed 7   # non-interactive walkthrough
 ```
 
 ## Layout
@@ -161,6 +167,11 @@ conlang/
   speech/
     phones.py        # map a segment's features -> an acoustic plan (formants/noise/bursts)
     synth.py         # formant synthesizer: glottal source, resonators, noise -> WAV
+  tutorial/
+    builder.py       # LanguageBuilder: accumulate per-stage choices -> Language
+    content.py       # the teaching steps (LCK lessons) + choices
+    session.py       # pure flow logic (no I/O, testable)
+    runner.py        # interactive prompt + non-interactive demo
   language.py        # the Language aggregate: all six stages in one object + generate(seed)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
