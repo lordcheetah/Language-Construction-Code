@@ -383,6 +383,11 @@ def cmd_generate(args) -> int:
             if e:
                 print(f"  {gloss:<8} {e.roman} /{e.ipa}/")
 
+    print(f"\nNumbers (base {lang.numerals.base}):")
+    for n in (1, 2, 3, 7, 10, 11, 24, 100):
+        if n <= lang.numerals.max_value:
+            print(f"  {n:>4}  {lang.numerals.number(n).roman}")
+
     print("\nSample sentences:")
     for english, kw in _SHOWCASE_SENTENCES:
         try:

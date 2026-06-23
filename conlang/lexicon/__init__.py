@@ -27,6 +27,7 @@ from conlang.lexicon.concepts import (
 )
 from conlang.lexicon.lexicon import LexicalEntry, Lexicon, Etymology
 from conlang.lexicon.generator import build_lexicon
+from conlang.lexicon.numerals import NumeralSystem, Numeral, build_numerals
 
 __all__ = [
     "Concept",
@@ -40,4 +41,7 @@ __all__ = [
     "Lexicon",
     "Etymology",
     "build_lexicon",
+    "NumeralSystem",
+    "Numeral",
+    "build_numerals",
 ]

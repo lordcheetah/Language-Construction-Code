@@ -86,10 +86,12 @@ placed clause-finally rather than by a positional parameter.
 ### Deferred (Stage 5 "advanced" backlog)
 
 The lexicon builds a semantic-field dictionary with colexification, derivation, and
-compounding, sized by Zipf's law of abbreviation. Still to add: richer kinship-system
-structure, numeral base systems (built compositionally past five), antonym pairs sharing
-morphology, polysemy networks (chains, not just binary colexification), suppletion in
-basic vocabulary, semantic shift tied to sound change, and loanword strata / register.
+compounding, sized by Zipf's law of abbreviation, plus a **numeral system** (a rolled base
+— decimal/vigesimal/quinary/duodecimal — with words composed past five, e.g. "two-ten-four"
+= 24, order tied to head-direction). Still to add: irregular teens / suppletive numerals
+and sub-bases, richer kinship-system structure, antonym pairs sharing morphology, polysemy
+networks (chains, not just binary colexification), suppletion in basic vocabulary, semantic
+shift tied to sound change, and loanword strata / register.
 
 ### Deferred (Stage 6 "advanced" backlog)
 

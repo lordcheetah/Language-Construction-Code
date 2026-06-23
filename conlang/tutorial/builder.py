@@ -24,6 +24,7 @@ from conlang.morphology.features import Typology
 from conlang.syntax.parameters import WordOrder, SyntaxParameters, derive_correlates
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Lexicon
+from conlang.lexicon.numerals import build_numerals
 from conlang.writing.generator import build_writing_system
 from conlang.writing.system import WritingSystem, WritingSystemType
 from conlang.language import Language
@@ -113,6 +114,10 @@ class LanguageBuilder:
             self.roll_lexicon()
         if self.writing is None:
             self.roll_writing()
+        numerals = build_numerals(
+            self.lexicon, self.phonotactics, self.rng,
+            romanizer=self.romanizer, head_final=not self.syntax.basic_order.is_vo,
+        )
         return Language(
             inventory=self.inventory,
             phonotactics=self.phonotactics,
@@ -120,6 +125,7 @@ class LanguageBuilder:
             syntax=self.syntax,
             lexicon=self.lexicon,
             writing=self.writing,
+            numerals=numerals,
             romanizer=self.romanizer,
             seed=self.seed,
         )

@@ -31,6 +31,7 @@ from conlang.syntax.structure import Lexeme, NounPhrase, Clause
 from conlang.syntax.linearizer import Linearizer, Sentence
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Lexicon
+from conlang.lexicon.numerals import build_numerals, NumeralSystem
 from conlang.soundchange.ruleset import RuleSet
 from conlang.writing.generator import build_writing_system
 from conlang.writing.system import WritingSystem
@@ -39,7 +40,8 @@ from conlang.writing.system import WritingSystem
 # snapshots so a seed can be paired with the generator version that minted it.
 # v2: morphology gained inflection classes (changes RNG consumption and lexicon output).
 # v3: clause-level sentence types added negator/question particles to the lexicon.
-GENERATOR_VERSION = 3
+# v4: a numeral system is rolled per language.
+GENERATOR_VERSION = 4
 
 
 @dataclass
@@ -52,6 +54,7 @@ class Language:
     syntax: SyntaxParameters
     lexicon: Lexicon
     writing: WritingSystem
+    numerals: NumeralSystem
     romanizer: Romanizer
     seed: int | None = None
 
@@ -85,6 +88,10 @@ class Language:
             head_final=not syntax.basic_order.is_vo,
         )
         writing = build_writing_system(inventory, rng)
+        numerals = build_numerals(
+            lexicon, phonotactics, rng,
+            romanizer=romanizer, head_final=not syntax.basic_order.is_vo,
+        )
 
         return cls(
             inventory=inventory,
@@ -93,6 +100,7 @@ class Language:
             syntax=syntax,
             lexicon=lexicon,
             writing=writing,
+            numerals=numerals,
             romanizer=romanizer,
             seed=seed,
         )
@@ -227,6 +235,13 @@ class Language:
                 "adposition": self.syntax.adposition.value,
             },
             "writing": {"type": self.writing.type.value},
+            "numerals": {
+                "base": self.numerals.base,
+                "samples": {
+                    str(n): self.numerals.number(n).roman
+                    for n in (1, 2, 5, 10, 42, 100) if n <= self.numerals.max_value
+                },
+            },
             "lexicon": {
                 gloss: {
                     "roman": e.roman,
@@ -253,6 +268,10 @@ class Language:
             self.syntax.describe(),
             "",
             self.writing.summary(),
+            "",
+            f"Numerals: base {self.numerals.base}; "
+            + ", ".join(f"{n}={self.numerals.number(n).roman}"
+                        for n in (1, 2, 3, 10, 100) if n <= self.numerals.max_value),
             "",
             f"Lexicon: {len(self.lexicon)} words across "
             f"{len(self.lexicon.by_field())} semantic fields",

@@ -34,6 +34,9 @@ def test_generate_wires_all_stages():
     assert lang.syntax.basic_order
     assert len(lang.lexicon) == len(CONCEPTS)
     assert lang.writing.consonants
+    assert lang.numerals.base in (5, 10, 12, 20)
+    # numerals are part of the deterministic, seed-reproducible language
+    assert lang.numerals.number(24).roman == Language.generate(7).numerals.number(24).roman
 
 
 def test_compound_order_follows_generated_syntax():
@@ -132,8 +135,10 @@ def test_to_dict_is_json_serializable_and_complete():
     data = json.loads(blob)
     assert data["seed"] == 11 and data["generator_version"] >= 1
     assert set(data) == {
-        "seed", "generator_version", "phonology", "morphology", "syntax", "writing", "lexicon"
+        "seed", "generator_version", "phonology", "morphology", "syntax", "writing",
+        "numerals", "lexicon",
     }
+    assert data["numerals"]["base"] in (5, 10, 12, 20)
     assert len(data["lexicon"]) == len(CONCEPTS)
     assert "order" in data["syntax"] and "typology" in data["morphology"]
 
