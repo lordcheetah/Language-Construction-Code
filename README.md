@@ -22,12 +22,20 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 
 | Stage | Module | Status |
 |-------|--------|--------|
-| 1. Phonology      | `conlang.phonology` — inventory, phonotactics, word generation | **in progress** |
-| 2. Sound change   | `conlang.soundchange` — SCA-style proto → daughter evolution    | planned |
+| 1. Phonology      | `conlang.phonology` — inventory, phonotactics, word generation | **done** |
+| 2. Sound change   | `conlang.soundchange` — SCA-style proto → daughter evolution    | **done** |
 | 3. Morphology     | `conlang.morphology` — inflection, derivation, affixes          | planned |
 | 4. Syntax         | `conlang.syntax` — word order, grammar rules                    | planned |
 | 5. Lexicon        | `conlang.lexicon` — vocabulary & semantic fields                | planned |
 | 6. Orthography    | `conlang.writing` — romanization, glyph/pictogram generation    | planned |
+
+### Deferred (Stage 2 "advanced" backlog)
+
+The sound-change engine handles substitution, feature-class transforms, deletion, and
+ordered (feeding/bleeding) rule application. Still to add when needed: epenthesis /
+insertion (`0 > V / …`), feature-agreement assimilation (α-features, "assimilate to the
+following place" in one rule), optional / variable-length environment elements (`(C)`,
+wildcards), and multi-segment targets (gemination, metathesis).
 
 ## How this is built
 
@@ -39,8 +47,12 @@ critiques each module for both linguistic accuracy and code quality before it's 
 
 ```bash
 pip install -e .
-python -m conlang phonology --random          # roll a random plausible inventory + words
-python -m conlang phonology --random --seed 42 # reproducible
+python -m conlang phonology --random            # roll a random plausible inventory + words
+python -m conlang phonology --random --seed 42  # reproducible
+
+# Evolve a generated proto-lexicon into a daughter language
+python -m conlang soundchange --demo --seed 42 --trace
+python -m conlang soundchange --seed 3 --rule "[voiceless plosive] > [+voiced] / V_V"
 ```
 
 ## Layout
@@ -53,6 +65,10 @@ conlang/
     inventory.py     # phoneme inventory: random-plausible & guided
     phonotactics.py  # syllable templates, onset/coda constraints, clusters
     wordgen.py       # frequency-weighted word/root generator + romanization
+  soundchange/
+    matcher.py       # feature classes, natural-class matching, reverse feature lookup
+    rule.py          # parse + apply one "target > replacement / environment" rule
+    ruleset.py       # ordered rules, category defs, derivation over a lexicon
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
 ```

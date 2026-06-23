@@ -41,6 +41,7 @@ CONSONANTS: list[Consonant] = [
     # so it sits *below* /d/ despite velars being common among voiceless stops.
     Consonant("g", 0.44, Place.VELAR, Manner.PLOSIVE, _VD),
     Consonant("q", 0.16, Place.UVULAR, Manner.PLOSIVE, _VL),
+    Consonant("ɢ", 0.02, Place.UVULAR, Manner.PLOSIVE, _VD),
     Consonant("ʔ", 0.37, Place.GLOTTAL, Manner.PLOSIVE, _VL),
     Consonant("c", 0.14, Place.PALATAL, Manner.PLOSIVE, _VL),
     # Nasals

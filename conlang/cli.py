@@ -16,6 +16,17 @@ import sys
 from conlang.phonology.inventory import Inventory
 from conlang.phonology.phonotactics import Phonotactics
 from conlang.phonology.wordgen import WordGenerator
+from conlang.soundchange.ruleset import RuleSet
+
+# An illustrative ruleset used by `soundchange --demo`: intervocalic voicing, then final
+# devoicing (a classic feeding/bleeding pair), plus intervocalic /h/-loss.
+_DEMO_RULES = """
+# Demo: lenition then final devoicing
+K = p t k
+K > [+voiced] / V_V
+[voiced obstruent] > [-voiced] / _#
+h > 0 / V_V
+"""
 
 
 def _build_phonology(args, rng: random.Random) -> tuple[Inventory, Phonotactics]:
@@ -51,6 +62,50 @@ def cmd_phonology(args) -> int:
     return 0
 
 
+def cmd_soundchange(args) -> int:
+    rng = random.Random(args.seed)
+    # Build a proto-language; default to random when no explicit inventory is given.
+    if not args.inventory and not args.random:
+        args.random = True
+    inv, phono = _build_phonology(args, rng)
+
+    # Assemble the ruleset from a file, inline --rule flags, or the built-in demo.
+    if args.rules_file:
+        with open(args.rules_file, encoding="utf-8") as fh:
+            ruleset = RuleSet.parse(fh.read())
+    elif args.rule:
+        ruleset = RuleSet.from_rules(args.rule)
+    elif args.demo:
+        ruleset = RuleSet.parse(_DEMO_RULES)
+    else:
+        raise SystemExit("soundchange: pass --rules-file FILE, one or more --rule, or --demo")
+
+    gen = WordGenerator(phono)
+    proto = gen.lexicon(args.count, rng)
+    evolved = ruleset.evolve_lexicon(proto, gen.romanizer)
+
+    print(inv.summary())
+    print(f"\nApplied {len(ruleset.rules)} sound change(s):")
+    for r in ruleset.rules:
+        print(f"  {r.source}")
+    print(f"\nProto -> Daughter ({len(evolved)} words):")
+    proto_col = [f"{e.original.roman} /{e.original.ipa}/" for e in evolved]
+    width = max((len(s) for s in proto_col), default=0)
+    for e, proto_str in zip(evolved, proto_col):
+        mark = "" if e.ipa == e.original.ipa else "  *"
+        print(f"  {proto_str:<{width}}  ->  {e.roman} /{e.ipa}/{mark}")
+
+    if args.trace:
+        print("\nDerivations (changed words only):")
+        for e in evolved:
+            proto_segments = [s for syl in e.original.syllables for s in syl]
+            deriv = ruleset.derive(proto_segments)
+            if deriv.changed:
+                print(f"\n{e.original.roman}:")
+                print(deriv.trace())
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="conlang", description="Generate constructed languages, one stage at a time."
@@ -67,6 +122,25 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--count", type=int, default=20, help="number of sample words (default 20)")
     p.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
     p.set_defaults(func=cmd_phonology)
+
+    s = sub.add_parser(
+        "soundchange",
+        help="evolve a generated proto-lexicon through sound changes into a daughter language",
+    )
+    s.add_argument("--random", action="store_true", help="random proto-language (default)")
+    s.add_argument("--inventory", help='explicit proto IPA inventory, e.g. "p t k a i u"')
+    s.add_argument("--templates", help='comma-separated syllable templates')
+    s.add_argument("--rules-file", help="path to a ruleset file")
+    s.add_argument(
+        "--rule",
+        action="append",
+        help='an inline rule, e.g. "p > b / V_V" (repeatable)',
+    )
+    s.add_argument("--demo", action="store_true", help="use a built-in example ruleset")
+    s.add_argument("--trace", action="store_true", help="show step-by-step derivations")
+    s.add_argument("--count", type=int, default=20, help="proto-lexicon size (default 20)")
+    s.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    s.set_defaults(func=cmd_soundchange)
     return parser
 
 
