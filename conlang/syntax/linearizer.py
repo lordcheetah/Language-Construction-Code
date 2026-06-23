@@ -33,7 +33,7 @@ from conlang.syntax.parameters import (
     SyntaxParameters, Side, Adposition, Alignment, Negation, PolarQuestion,
 )
 from conlang.syntax.structure import (
-    Clause, NounPhrase, AdpositionalPhrase, RelativeClause, Lexeme, Role,
+    Clause, NounPhrase, AdpositionalPhrase, RelativeClause, Coordination, Lexeme, Role,
 )
 
 
@@ -96,10 +96,24 @@ class Linearizer:
         self.particles = particles or {}
 
     # --- Public API ------------------------------------------------------------------
-    def linearize(self, clause: Clause) -> Sentence:
+    def linearize(self, item: "Clause | Coordination") -> Sentence:
+        if isinstance(item, Coordination):  # a compound sentence (coordinated clauses)
+            return Sentence(tuple(self._coordinate(item, self._clause_tokens)))
+        return Sentence(tuple(self._clause_tokens(item)))
+
+    def _clause_tokens(self, clause: Clause) -> list[GlossedWord]:
         words = self._core_tokens(clause)
-        words = self._mark_polar_question(clause, words)
-        return Sentence(tuple(words))
+        return self._mark_polar_question(clause, words)
+
+    def _coordinate(self, coord: Coordination, render) -> list[GlossedWord]:
+        """Join conjuncts with the medial coordinator particle (asyndetic if it's absent)."""
+        conj = self._particle(coord.coordinator, coord.coordinator.upper())
+        words: list[GlossedWord] = []
+        for i, item in enumerate(coord.conjuncts):
+            if i > 0 and conj is not None:
+                words.append(conj)
+            words.extend(render(item))
+        return words
 
     def _core_tokens(self, clause: Clause, omit: Role | None = None) -> list[GlossedWord]:
         """The ordered S/V/O (+ obliques) tokens of a clause, optionally omitting one role
@@ -107,11 +121,11 @@ class Linearizer:
         transitive = clause.is_transitive
         constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
         if not clause.is_imperative and omit is not Role.SUBJECT:
-            constituents["S"] = self._noun_phrase(
+            constituents["S"] = self._argument(
                 clause.subject, self._core_case(Role.SUBJECT, transitive)
             )
         if transitive and omit is not Role.OBJECT:
-            constituents["O"] = self._noun_phrase(
+            constituents["O"] = self._argument(
                 clause.object, self._core_case(Role.OBJECT, transitive)
             )
 
@@ -144,11 +158,28 @@ class Linearizer:
         return "nom" if unmarked else "acc"
 
     # --- Noun phrases ----------------------------------------------------------------
+    def _argument(self, arg: "NounPhrase | Coordination", case: str) -> list[GlossedWord]:
+        """A core argument: a single noun phrase, or several coordinated by "and"/"or".
+
+        Every conjunct takes the same core case; verb agreement reads the coordination's
+        resolved number (plural for "and") via :attr:`Coordination.number`.
+        """
+        if isinstance(arg, Coordination):
+            return self._coordinate(arg, lambda np: self._noun_phrase(np, case))
+        return self._noun_phrase(arg, case)
+
     def _marked(self, word_class: str) -> set[str]:
         paradigm = self.morphology.paradigms.get(word_class)
         return {c.name for c in paradigm.marked} if paradigm else set()
 
     def _noun_phrase(self, np: NounPhrase, case: str) -> list[GlossedWord]:
+        if isinstance(np, Coordination):
+            # Coordination is supported only as a core argument (see _argument); a coordinated
+            # possessor or relative-clause head is out of scope — fail clearly, not obscurely.
+            raise TypeError(
+                "coordination is only supported in subject/object position, not as a "
+                "possessor or relative-clause head"
+            )
         noun_bundle = FeatureBundle.of(
             **_drop_none(case=case, number=np.number, definiteness=np.definiteness)
         )

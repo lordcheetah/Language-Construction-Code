@@ -65,6 +65,38 @@ class NounPhrase:
 
 
 @dataclass
+class Coordination:
+    """Two or more coordinated elements joined by a coordinator ("and" / "or").
+
+    The conjuncts are either all :class:`NounPhrase` (a coordinated argument, e.g. "the dog
+    and the cat") or all :class:`Clause` (a compound sentence, e.g. "the dog sleeps and the
+    cat runs"). The coordinator is placed medially — between each pair of conjuncts — which
+    is the dominant cross-linguistic pattern; ``coordinator`` names its particle ("and" for
+    conjunction, "or" for disjunction).
+    """
+
+    conjuncts: list  # list[NounPhrase] | list[Clause]
+    coordinator: str = "and"
+
+    def __post_init__(self) -> None:
+        if len(self.conjuncts) < 2:
+            raise ValueError("a coordination needs at least two conjuncts")
+
+    @property
+    def number(self) -> str:
+        # A conjoined subject is semantically plural and controls plural agreement; a
+        # disjoined ("or") one keeps its first conjunct's number (a simplification of the
+        # cross-linguistically variable agreement with disjoined subjects).
+        if self.coordinator == "and":
+            return "pl"
+        return getattr(self.conjuncts[0], "number", "sg")
+
+    @property
+    def gloss(self) -> str:
+        return f" {self.coordinator} ".join(c.gloss for c in self.conjuncts)
+
+
+@dataclass
 class AdpositionalPhrase:
     """An adposition plus its noun phrase (a preposition or postposition + NP)."""
 

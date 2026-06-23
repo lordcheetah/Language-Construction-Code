@@ -22,7 +22,7 @@ from conlang.morphology.features import FeatureBundle
 from conlang.syntax.generator import random_syntax
 from conlang.syntax.linearizer import Linearizer
 from conlang.syntax.structure import (
-    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Role,
+    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Coordination, Role,
 )
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Etymology
@@ -222,8 +222,9 @@ def cmd_syntax(args) -> int:
     iverbs = _build_lexicon(gen, rng, _IVERB_GLOSSES, "verb")
     adjs = _build_lexicon(gen, rng, _ADJ_GLOSSES, "adjective")
     adps = _build_lexicon(gen, rng, _ADP_GLOSSES, "adposition")
-    particle_lex = _build_lexicon(gen, rng, ["not", "Q", "REL"], "particle")
-    particles = {"neg": particle_lex["not"], "q": particle_lex["Q"], "rel": particle_lex["REL"]}
+    particle_lex = _build_lexicon(gen, rng, ["not", "Q", "REL", "and"], "particle")
+    particles = {"neg": particle_lex["not"], "q": particle_lex["Q"], "rel": particle_lex["REL"],
+                 "and": particle_lex["and"]}
     whs = _build_lexicon(gen, rng, ["who", "what"], "noun")
     lin = Linearizer(params, morphology, romanizer, particles=particles)
 
@@ -279,6 +280,15 @@ def cmd_syntax(args) -> int:
                NounPhrase(nouns["bird"], definiteness="indef"), questioned=Role.SUBJECT),
         Clause(NounPhrase(nouns["woman"], definiteness="def"), tverbs["see"],
                NounPhrase(whs["what"]), questioned=Role.OBJECT),
+        # Coordination: a conjoined subject ("the dog and the bird") drives plural agreement.
+        Clause(
+            Coordination(
+                [NounPhrase(nouns["dog"], definiteness="def"),
+                 NounPhrase(nouns["bird"], definiteness="def")],
+                "and",
+            ),
+            iverbs["sleep"],
+        ),
     ]
 
     print("\nSample sentences:")

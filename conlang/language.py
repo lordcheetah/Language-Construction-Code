@@ -27,7 +27,7 @@ from conlang.phonology.wordgen import WordGenerator, Romanizer, Word
 from conlang.morphology.generator import random_system, MorphologySystem
 from conlang.syntax.generator import random_syntax
 from conlang.syntax.parameters import SyntaxParameters
-from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Role
+from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Coordination, Role
 from conlang.syntax.linearizer import Linearizer, Sentence
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Lexicon
@@ -43,7 +43,8 @@ from conlang.writing.system import WritingSystem
 # v4: a numeral system is rolled per language.
 # v5: a relativizer particle was added to the lexicon.
 # v6: interrogative pronouns (who/what) were added to the lexicon.
-GENERATOR_VERSION = 6
+# v7: coordinator particles (and/or) were added to the lexicon.
+GENERATOR_VERSION = 7
 
 
 @dataclass
@@ -150,6 +151,49 @@ class Language:
         whose gloss should be a wh-pronoun ("who"/"what"). Only core arguments can be
         questioned, and wh-fronting moves just the wh-word — no auxiliary inversion.
         """
+        clause = self._build_clause(
+            subject, verb, obj,
+            subject_number=subject_number, subject_definiteness=subject_definiteness,
+            subject_adjective=subject_adjective, object_number=object_number,
+            object_definiteness=object_definiteness, tense=tense,
+            negated=negated, mood=mood, question=question,
+        )
+        return self._linearizer().linearize(clause)
+
+    def make_compound(self, *clauses: dict, coordinator: str = "and") -> Sentence:
+        """Coordinate several clauses into one compound sentence ("… and …" / "… or …").
+
+        Each clause is a dict of :meth:`make_sentence` keyword arguments (``subject``,
+        ``verb`` and the rest). The coordinator ("and"/"or") joins them medially.
+        """
+        if coordinator not in ("and", "or"):
+            raise ValueError("coordinator must be 'and' or 'or'")
+        if len(clauses) < 2:
+            raise ValueError("a compound sentence needs at least two clauses")
+        built = [self._build_clause(**spec) for spec in clauses]
+        return self._linearizer().linearize(Coordination(built, coordinator))
+
+    def _linearizer(self) -> Linearizer:
+        return Linearizer(
+            self.syntax, self.morphology, self.romanizer, particles=self._particles()
+        )
+
+    def _build_clause(
+        self,
+        subject: str,
+        verb: str,
+        obj: str | None = None,
+        *,
+        subject_number: str = "sg",
+        subject_definiteness: str | None = None,
+        subject_adjective: str | None = None,
+        object_number: str = "sg",
+        object_definiteness: str | None = None,
+        tense: str = "pres",
+        negated: bool = False,
+        mood: str = "declarative",
+        question: str | None = None,
+    ) -> Clause:
         if question is not None and question not in ("subject", "object"):
             raise ValueError("question must be 'subject', 'object', or None")
         if question is not None and mood == "imperative":
@@ -168,19 +212,17 @@ class Language:
                 number=object_number, definiteness=object_definiteness,
             )
         questioned = {"subject": Role.SUBJECT, "object": Role.OBJECT}.get(question)
-        clause = Clause(
+        return Clause(
             subj, self._lexeme(verb, expect_pos="verb"), obj_np,
             tense=tense, negated=negated, mood=mood, questioned=questioned,
         )
-        linearizer = Linearizer(
-            self.syntax, self.morphology, self.romanizer, particles=self._particles()
-        )
-        return linearizer.linearize(clause)
 
     def _particles(self) -> dict:
-        """The language's grammatical particles (negator, yes/no marker) as Lexemes."""
+        """The language's grammatical particles (negator, yes/no marker, …) as Lexemes."""
         out = {}
-        for key, gloss in (("neg", "not"), ("q", "Q"), ("rel", "REL")):
+        # Coordinators are keyed by their own gloss ("and"/"or") to match Coordination.coordinator.
+        for key, gloss in (("neg", "not"), ("q", "Q"), ("rel", "REL"),
+                           ("and", "and"), ("or", "or")):
             entry = self.lexicon.get(gloss)
             if entry is not None:
                 out[key] = Lexeme(entry.form, "particle", gloss, entry.inflection_class)

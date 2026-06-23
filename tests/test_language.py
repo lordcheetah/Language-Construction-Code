@@ -3,6 +3,8 @@
 import json
 import random
 
+import pytest
+
 from conlang.language import Language
 from conlang.lexicon.concepts import CONCEPTS
 from conlang.syntax.linearizer import Sentence
@@ -87,6 +89,29 @@ def test_make_sentence_intransitive_and_adjective():
     s2 = lang.make_sentence("dog", "eat", "meat", subject_adjective="big")
     # subject (+adjective), verb, object
     assert len(s2.words) >= 4
+
+
+def test_make_compound_coordinates_two_clauses():
+    lang = Language.generate(8)
+    one = lang.make_sentence("person", "walk")
+    compound = lang.make_compound(
+        dict(subject="person", verb="walk"),
+        dict(subject="person", verb="run"),
+        coordinator="and",
+    )
+    # a compound sentence is strictly longer than either conjunct (it adds the second
+    # clause and the medial "and" particle)
+    assert len(compound.words) > len(one.words)
+    assert any(w.gloss == "AND" for w in compound.words)
+
+
+def test_make_compound_rejects_bad_input():
+    lang = Language.generate(1)
+    walk = dict(subject="person", verb="walk")
+    with pytest.raises(ValueError):
+        lang.make_compound(walk, walk, coordinator="but")  # not a known coordinator
+    with pytest.raises(ValueError):
+        lang.make_compound(walk)  # a compound needs at least two clauses
 
 
 def test_make_sentence_rejects_unknown_gloss():

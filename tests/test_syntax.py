@@ -6,6 +6,8 @@ inflected sentence is unambiguous; the harmonic correlations are checked statist
 
 import random
 
+import pytest
+
 from conlang.phonology import data
 from conlang.morphology.features import CATEGORIES, WORD_CLASSES, FeatureBundle, Typology
 from conlang.morphology.affix import Affix, Position
@@ -22,7 +24,7 @@ from conlang.syntax.parameters import (
     derive_correlates,
 )
 from conlang.syntax.structure import (
-    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Role,
+    Lexeme, NounPhrase, Clause, AdpositionalPhrase, RelativeClause, Coordination, Role,
 )
 from conlang.syntax.linearizer import Linearizer
 from conlang.syntax.generator import random_syntax
@@ -299,6 +301,89 @@ def test_postnominal_without_relativizer_is_gap_only():
     np = NounPhrase(WOMAN, relative=RelativeClause(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)), Role.SUBJECT))
     toks = [t.ipa for t in lin._noun_phrase(np, "nom")]
     assert toks == ["mi", "ta", "pon"]  # head + embedded, no relativizer
+
+
+# --- Coordination -------------------------------------------------------------------
+AND = lex("w a", "particle", "and")
+OR = lex("y o", "particle", "or")
+_COORD_PARTICLES = {**_PARTICLES, "and": AND, "or": OR}
+
+
+def _coord_lin(**param_kw):
+    return Linearizer(_params(**param_kw), _system(), particles=_COORD_PARTICLES)
+
+
+def test_coordinated_subject_takes_a_medial_conjunction_and_plural_agreement():
+    lin = _coord_lin()
+    subj = Coordination([NounPhrase(WOMAN), NounPhrase(BIRD)], "and")
+    clause = Clause(subj, SEE)  # intransitive
+    # "woman AND bird" + verb agrees PLURAL: mi wa po tau
+    assert forms(lin.linearize(clause)) == ["mi", "wa", "po", "tau"]
+
+
+def test_each_conjunct_of_a_coordinated_object_is_case_marked():
+    lin = _coord_lin()
+    obj = Coordination([NounPhrase(BIRD), NounPhrase(WOMAN)], "and")
+    clause = Clause(NounPhrase(WOMAN), SEE, obj)  # SVO
+    # subject sg -> verb sg (ta); both objects accusative: pon wa min
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "pon", "wa", "min"]
+
+
+def test_disjunction_does_not_force_plural_agreement():
+    lin = _coord_lin()
+    subj = Coordination([NounPhrase(WOMAN), NounPhrase(BIRD)], "or")
+    clause = Clause(subj, SEE)
+    # "or" leaves the verb singular (first-conjunct number): mi yo po ta
+    assert forms(lin.linearize(clause)) == ["mi", "yo", "po", "ta"]
+
+
+def test_coordination_without_a_conjunction_particle_is_asyndetic():
+    lin = Linearizer(_params(), _system(), particles=_PARTICLES)  # no "and" supplied
+    subj = Coordination([NounPhrase(WOMAN), NounPhrase(BIRD)], "and")
+    clause = Clause(subj, SEE)
+    # juxtaposition, still plural agreement: mi po tau
+    assert forms(lin.linearize(clause)) == ["mi", "po", "tau"]
+
+
+def test_three_conjuncts_repeat_the_medial_coordinator():
+    lin = _coord_lin()
+    subj = Coordination(
+        [NounPhrase(WOMAN), NounPhrase(BIRD), NounPhrase(WOMAN)], "and"
+    )
+    clause = Clause(subj, SEE)
+    # A and B and C, coordinator between every pair, verb plural: mi wa po wa mi tau
+    assert forms(lin.linearize(clause)) == ["mi", "wa", "po", "wa", "mi", "tau"]
+
+
+def test_coordinated_absolutive_object_controls_ergative_agreement():
+    lin = Linearizer(
+        _params(alignment=Alignment.ERGATIVE_ABSOLUTIVE), _system(),
+        particles=_COORD_PARTICLES,
+    )
+    obj = Coordination([NounPhrase(BIRD), NounPhrase(WOMAN)], "and")
+    clause = Clause(NounPhrase(WOMAN), SEE, obj)  # transitive
+    forms_out = forms(lin.linearize(clause))
+    # Under ergative alignment the verb agrees with the (coordinated, plural) absolutive
+    # object, so the verb is plural (tau); the agent is ergative-marked (-n).
+    assert "tau" in forms_out          # plural agreement from the coordinated object
+    assert "min" in forms_out          # ergative agent woman+ACC-as-ergative
+
+
+def test_coordination_outside_subject_object_fails_clearly():
+    lin = _coord_lin()
+    coord = Coordination([NounPhrase(WOMAN), NounPhrase(BIRD)], "and")
+    np = NounPhrase(WOMAN, genitive=coord)  # a coordinated possessor is unsupported
+    with pytest.raises(TypeError):
+        lin.linearize(Clause(np, SEE))
+
+
+def test_compound_sentence_coordinates_whole_clauses():
+    lin = _coord_lin()
+    compound = Coordination(
+        [Clause(NounPhrase(WOMAN), SEE), Clause(NounPhrase(BIRD), SEE)], "and"
+    )
+    # "woman see AND bird see" — each clause has singular agreement: mi ta wa po ta
+    assert forms(lin.linearize(compound)) == ["mi", "ta", "wa", "po", "ta"]
 
 
 # --- Graceful when the language marks little ----------------------------------------

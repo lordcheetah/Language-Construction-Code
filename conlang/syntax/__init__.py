@@ -28,7 +28,7 @@ from conlang.syntax.parameters import (
     PolarQuestion,
     derive_correlates,
 )
-from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Role
+from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Coordination, Role
 from conlang.syntax.linearizer import Linearizer, GlossedWord, Sentence
 from conlang.syntax.generator import random_syntax
 
@@ -44,6 +44,7 @@ __all__ = [
     "Lexeme",
     "NounPhrase",
     "Clause",
+    "Coordination",
     "Role",
     "Linearizer",
     "GlossedWord",
