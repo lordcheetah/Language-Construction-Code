@@ -213,6 +213,18 @@ class Linearizer:
         paradigm = self.morphology.paradigms.get(word_class)
         return {c.name for c in paradigm.marked} if paradigm else set()
 
+    def _number_for(self, word_class: str, number: str) -> str:
+        """Coerce a requested number to one the word class actually has, so a value the
+        language lacks (e.g. ``dual`` in a sg/pl language) degrades to the base consistently
+        in both the inflected form and the gloss. A class that doesn't mark number passes the
+        value through (it has no overt effect either way)."""
+        paradigm = self.morphology.paradigms.get(word_class)
+        if paradigm is not None:
+            for cat in paradigm.marked:
+                if cat.name == "number":
+                    return number if number in cat.values else cat.base
+        return number
+
     def _noun_phrase(self, np: NounPhrase, case: str) -> list[GlossedWord]:
         if isinstance(np, Coordination):
             # Coordination is supported only as a core argument (see _argument); a coordinated
@@ -225,19 +237,21 @@ class Linearizer:
         # noun itself is not inflected for it (no double-marking).
         article = self._article(np.definiteness)
         bundle_def = None if article is not None else np.definiteness
+        number = self._number_for(np.head.word_class, np.number)
         noun_bundle = FeatureBundle.of(
-            **_drop_none(case=case, number=np.number, definiteness=bundle_def)
+            **_drop_none(case=case, number=number, definiteness=bundle_def)
         )
         marked = self._marked(np.head.word_class)
-        gloss = np.head.gloss + _grammatical_tags(marked, np.number, case, bundle_def)
+        gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def)
         noun = self._inflected_word(np.head, noun_bundle, gloss)
 
         tokens: list[GlossedWord] = [noun]
         if np.adjective is not None:
             # Adjectives agree with their head noun in number (and case where marked).
-            adj_bundle = FeatureBundle.of(number=np.number, case=case)
+            adj_number = self._number_for(np.adjective.word_class, np.number)
+            adj_bundle = FeatureBundle.of(number=adj_number, case=case)
             adj_marked = self._marked(np.adjective.word_class)
-            adj_gloss = np.adjective.gloss + _grammatical_tags(adj_marked, np.number, case, None)
+            adj_gloss = np.adjective.gloss + _grammatical_tags(adj_marked, adj_number, case, None)
             adj = self._inflected_word(np.adjective, adj_bundle, adj_gloss)
             tokens = _place(self.params.adjective, adj, tokens)
         if np.genitive is not None:
@@ -312,15 +326,16 @@ class Linearizer:
         # Imperative addresses the listener (2nd person); otherwise the verb agrees with the
         # subject's person — a pronoun carries 1/2/3, a full NP defaults to 3rd person.
         person = "2" if clause.is_imperative else (getattr(agr, "person", None) or "3")
+        number = self._number_for(clause.verb.word_class, agr.number)
         mood = "imperative" if clause.is_imperative else "indicative"
         polarity = "negative" if self._verbal_negation(clause) else "affirmative"
         bundle = FeatureBundle.of(
-            tense=clause.tense, person=person, number=agr.number,
+            tense=clause.tense, person=person, number=number,
             mood=mood, polarity=polarity,
         )
         marked = self._marked(clause.verb.word_class)
         gloss = clause.verb.gloss + _verb_tags(
-            marked, person, agr.number, clause.tense, mood, polarity
+            marked, person, number, clause.tense, mood, polarity
         )
         return self._inflected_word(clause.verb, bundle, gloss)
 
@@ -371,8 +386,8 @@ def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: st
     one never shows ``.PL``. The unmarked nominative is conventionally left unglossed.
     """
     tags = []
-    if "number" in marked and number == "pl":
-        tags.append("PL")
+    if "number" in marked and number not in (None, "sg"):
+        tags.append("DU" if number == "dual" else "PL")
     if "case" in marked and case and case != "nom":
         tags.append(case.upper())
     if "definiteness" in marked and definiteness == "def":
@@ -388,7 +403,7 @@ def _verb_tags(marked: set[str], person: str, number: str, tense: str, mood: str
     if "person" in marked:
         agr += person
     if "number" in marked:
-        agr += "PL" if number == "pl" else "SG"
+        agr += {"pl": "PL", "dual": "DU"}.get(number, "SG")
     tags = [agr] if agr else []
     if "tense" in marked and tense and tense != "pres":
         tags.append(tense.upper())

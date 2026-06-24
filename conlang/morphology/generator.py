@@ -116,10 +116,20 @@ def random_system(
     # Suffixing is cross-linguistically dominant; pick a per-language bias.
     dominant = Position.SUFFIX if rng.random() < 0.7 else Position.PREFIX
 
+    # A minority of languages add a dual (sg/dual/pl) wherever they mark number — decided once
+    # per language so nouns, verbs and adjectives agree on the same number system.
+    number_category = CATEGORIES["number"]
+    if rng.random() < 0.20:
+        number_category = GrammaticalCategory(
+            "number", ("sg", "dual", "pl"), "sg", number_category.commonness
+        )
+
     paradigms: dict[str, Paradigm] = {}
     for class_name in classes:
         word_class = WORD_CLASSES[class_name]
-        marked = _choose_marked_categories(rng, word_class.categories(), typology)
+        categories = [number_category if c.name == "number" else c
+                      for c in word_class.categories()]
+        marked = _choose_marked_categories(rng, categories, typology)
         paradigms[class_name] = _build_paradigm(
             rng, word_class, typology, marked, dominant, inventory, romanizer, sandhi
         )

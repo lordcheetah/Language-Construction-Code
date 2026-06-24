@@ -174,10 +174,15 @@ class Paradigm:
         return affix.attach(root)
 
     def _complete(self, bundle: FeatureBundle) -> FeatureBundle:
-        """Return *bundle* restricted to marked categories, filling gaps with base."""
+        """Return *bundle* restricted to marked categories, filling gaps with base.
+
+        A value this category doesn't have (e.g. ``number="dual"`` asked of a sg/pl language)
+        falls back to the base, so it yields the citation form rather than a silent mismatch.
+        """
         mapping: dict[str, str] = {}
         for cat in self.marked:
-            mapping[cat.name] = bundle.get(cat.name) or cat.base
+            value = bundle.get(cat.name) or cat.base
+            mapping[cat.name] = value if value in cat.values else cat.base
         return FeatureBundle.from_dict(mapping)
 
     def _apply_sandhi(self, form: list[Segment]) -> list[Segment]:

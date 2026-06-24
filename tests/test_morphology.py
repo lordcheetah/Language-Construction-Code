@@ -263,6 +263,74 @@ def test_generated_stem_alternation_is_reachable():
     assert found, "no seed in range organically rolled a stem alternation"
 
 
+# --- Dual number --------------------------------------------------------------------
+def test_dual_number_inflects_three_ways():
+    num = GrammaticalCategory("number", ("sg", "dual", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (num,))
+    par.agglutinative_affixes[("number", "dual")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="dual"), "DU"
+    )
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="sg"))) == "kat"     # base (zero)
+    assert ipa(par.inflect(root, FeatureBundle.of(number="dual"))) == "kati"  # dual affix
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kats"    # plural affix
+    # the full paradigm enumerates all three number values
+    assert {b.get("number") for b in par.enumerate_bundles()} == {"sg", "dual", "pl"}
+
+
+def test_fusional_dual_inflects():
+    num = GrammaticalCategory("number", ("sg", "dual", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.FUSIONAL, (num,))
+    par.fusional_affixes[FeatureBundle.of(number="dual")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="dual"), "DU"
+    )
+    par.fusional_affixes[FeatureBundle.of(number="pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="sg"))) == "kat"     # citation
+    assert ipa(par.inflect(root, FeatureBundle.of(number="dual"))) == "kati"
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kats"
+
+
+def test_dual_differs_across_inflection_classes():
+    num = GrammaticalCategory("number", ("sg", "dual", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (num,))
+    par.agglutinative_affixes[("number", "dual")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="dual"), "DU"
+    )
+    par.extra_classes["2"] = InflectionClass(
+        {("number", "dual"): Affix((data.vowel("u"),), Position.SUFFIX,
+                                   FeatureBundle.of(number="dual"), "DU")}
+    )
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="dual"), "1")) == "kati"
+    assert ipa(par.inflect(root, FeatureBundle.of(number="dual"), "2")) == "katu"
+
+
+def test_requesting_an_unsupported_number_value_falls_back_to_base():
+    # a sg/pl paradigm asked for 'dual' yields the citation form, not a silent mismatch
+    par = _plural_paradigm()
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of(number="dual"))) == "kat"
+
+
+def test_generated_dual_is_consistent_across_word_classes():
+    # Some seed rolls a dual; when it does, EVERY number-marking class uses sg/dual/pl.
+    for seed in range(60):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        number_cats = [next((c for c in par.marked if c.name == "number"), None)
+                       for par in system.paradigms.values()]
+        number_cats = [c for c in number_cats if c is not None]
+        if any("dual" in c.values for c in number_cats):
+            assert all("dual" in c.values for c in number_cats)  # consistent system-wide
+            return
+    raise AssertionError("no dual number system in 60 seeds (unexpected)")
+
+
 # --- Derivation ---------------------------------------------------------------------
 def test_derivation_rule_applies_affix():
     rule = DerivationRule(

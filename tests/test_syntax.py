@@ -9,7 +9,9 @@ import random
 import pytest
 
 from conlang.phonology import data
-from conlang.morphology.features import CATEGORIES, WORD_CLASSES, FeatureBundle, Typology
+from conlang.morphology.features import (
+    CATEGORIES, WORD_CLASSES, FeatureBundle, GrammaticalCategory, Typology,
+)
 from conlang.morphology.affix import Affix, Position
 from conlang.morphology.paradigm import Paradigm
 from conlang.morphology.generator import MorphologySystem
@@ -385,6 +387,45 @@ def test_compound_sentence_coordinates_whole_clauses():
     )
     # "woman see AND bird see" — each clause has singular agreement: mi ta wa po ta
     assert forms(lin.linearize(compound)) == ["mi", "ta", "wa", "po", "ta"]
+
+
+# --- Dual number flows to the surface and the gloss ---------------------------------
+_DUAL_NUMBER = GrammaticalCategory("number", ("sg", "dual", "pl"), "sg", 0.70)
+
+
+def _dual_system() -> MorphologySystem:
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (_DUAL_NUMBER, CASE))
+    noun.agglutinative_affixes[("number", "dual")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="dual"), "DU"
+    )
+    noun.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    noun.agglutinative_affixes[("case", "acc")] = Affix(
+        (data.consonant("n"),), Position.SUFFIX, FeatureBundle.of(case="acc"), "ACC"
+    )
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (_DUAL_NUMBER,))
+    verb.agglutinative_affixes[("number", "dual")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(number="dual"), "DU"
+    )
+    return MorphologySystem(Typology.AGGLUTINATIVE, {"noun": noun, "verb": verb})
+
+
+def test_dual_number_is_glossed_du_through_the_linearizer():
+    lin = Linearizer(_params(WordOrder.SVO), _dual_system())
+    out = lin.linearize(Clause(NounPhrase(WOMAN, number="dual"), SEE))  # intransitive
+    glosses = [w.gloss for w in out.words]
+    assert "woman.DU" in glosses                       # the noun shows the dual, not bare/PL
+    assert any(g == "see.DU" for g in glosses)          # the verb agrees DU, not SG
+    assert forms(out) == ["mii", "tau"]                 # woman+DU /i/, see+DU /u/
+
+
+def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
+    lin = Linearizer(_params(WordOrder.SVO), _system())  # number is sg/pl only
+    out = lin.linearize(Clause(NounPhrase(WOMAN, number="dual"), SEE))
+    # 'dual' isn't in this language -> coerced to the base (sg): bare form, no DU in the gloss
+    assert forms(out)[0] == "mi"
+    assert not any("DU" in w.gloss for w in out.words)
 
 
 # --- Pro-drop -----------------------------------------------------------------------

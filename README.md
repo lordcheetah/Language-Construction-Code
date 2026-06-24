@@ -73,12 +73,13 @@ affix sets per word class, the extras sharing a backbone with the base via parti
 syncretism; each word is assigned a class), and — added since the first pass — **stem
 allomorphy** (a bound/oblique stem distinct from the citation root, formed by a final-edge
 mutation — final-stop voicing, vowel raising/umlaut — and used whenever the word is overtly
-inflected, optionally restricted to one triggering category). Still to add: alternation
-conditioned by the following affix (e.g. only before vowel-initial endings), class-bound
-stems, true analytic-particle isolating morphology, extra number values (dual/paucal) and
-clusivity, zero-derivation (conversion), derivation stacking, and tying inflection class to
-gender / stem shape (class assignment is currently random rather than phonologically
-conditioned).
+inflected, optionally restricted to one triggering category) and an optional **dual number**
+(a minority of languages roll a three-way sg/dual/pl system, applied consistently across
+nouns, verbs and adjectives and glossed `DU`). Still to add: alternation conditioned by the
+following affix (e.g. only before vowel-initial endings), class-bound stems, true
+analytic-particle isolating morphology, paucal/trial and clusivity, zero-derivation
+(conversion), derivation stacking, and tying inflection class to gender / stem shape (class
+assignment is currently random rather than phonologically conditioned).
 
 ### Deferred (Stage 4 "advanced" backlog)
 

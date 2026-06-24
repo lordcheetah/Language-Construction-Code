@@ -179,7 +179,8 @@ def test_make_sentence_rejects_unknown_gloss():
 def test_make_sentence_content_question():
     lang = Language.generate(8)
     sent = lang.make_sentence("who", "see", "bird", question="subject")
-    assert any(w.gloss == "who" for w in sent.words)
+    # the wh-word is present (its gloss may carry a case tag, e.g. "who.ACC" under ergative)
+    assert any(w.gloss.split(".")[0] == "who" for w in sent.words)
     assert len(sent.words) >= 3
 
 

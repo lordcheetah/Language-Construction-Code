@@ -51,7 +51,8 @@ from conlang.writing.system import WritingSystem
 # v12: syntax rolls a free-article parameter (another shared-RNG draw before lexicon/writing).
 # v13: the lexicon rolls a kinship system and adds kin terms (changes lexicon RNG/output).
 # v14: the writing system rolls a layout direction (an rng draw before numerals are built).
-GENERATOR_VERSION = 14
+# v15: morphology may roll a dual number (sg/dual/pl), changing morphology RNG.
+GENERATOR_VERSION = 15
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
