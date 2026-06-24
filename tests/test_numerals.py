@@ -110,6 +110,56 @@ def test_base_five_uses_five_as_the_base_word():
     assert system.base_word.roman == lexicon.get("five").roman
 
 
+def test_irregular_teens_override_regular_composition():
+    atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
+    s = NumeralSystem(
+        base=10, atoms=atoms,
+        base_word=Numeral(10, "ten", "ten"), square_word=Numeral(100, "hun", "hun"),
+        multiplier_before_base=True, units_before_tens=False, bare_base_for_one=True,
+        irregular={11: Numeral(11, "elv", "elv"), 12: Numeral(12, "twlv", "twlv")},
+    )
+    assert s.number(11).roman == "elv"     # suppletive, not the regular "ten d1"
+    assert s.number(12).roman == "twlv"
+    assert s.number(13).roman == "ten d3"  # 13 is not irregular -> regular composition
+    assert s.number(111).roman == "hun elv"  # the teen is reused inside a larger number
+
+
+def test_irregular_teens_work_under_a_vigesimal_base():
+    atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 20)}
+    s = NumeralSystem(
+        base=20, atoms=atoms,
+        base_word=Numeral(20, "score", "score"), square_word=Numeral(400, "gross", "gross"),
+        multiplier_before_base=True, units_before_tens=False, bare_base_for_one=True,
+        irregular={21: Numeral(21, "xa", "xa")},
+    )
+    assert s.number(21).roman == "xa"              # suppletive
+    assert s.number(22).roman == "score d2"        # 22 is regular (only 21 irregular)
+    assert s.number(421).roman == "gross xa"       # reused compositionally (400 + 21)
+
+
+def test_generated_irregular_teens_are_in_range_distinct_and_decimal_or_higher():
+    for seed in range(40):
+        lexicon, phono, *_ = _materials(seed)
+        system = build_numerals(lexicon, phono, random.Random(seed))
+        if system.irregular:
+            assert system.base >= 10  # never rolled for a small (base-5) system
+            others = {system.base_word.ipa, system.square_word.ipa,
+                      *(a.ipa for a in system.atoms.values())}
+            for value, num in system.irregular.items():
+                assert system.base < value < system.base ** 2  # a teen, in range
+                assert system.number(value).roman == num.roman  # used directly
+                assert num.ipa not in others  # a distinct, suppletive root
+            return
+    raise AssertionError("no irregular-teen system in 40 seeds (unexpected)")
+
+
+def test_base_five_never_has_irregular_teens():
+    for seed in range(30):
+        lexicon, phono, *_ = _materials(seed)
+        system = build_numerals(lexicon, phono, random.Random(seed), base=5)
+        assert system.irregular == {}  # restricted to base >= 10
+
+
 def test_bare_base_false_keeps_the_one_in_hundreds():
     atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
     s = NumeralSystem(

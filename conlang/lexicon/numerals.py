@@ -9,18 +9,18 @@ the base/“hundred” words, and composes the word for any number up to base³ 
 A few cross-linguistic switches are rolled per language and biased by word order (a
 head-final language tends to put the multiplier and units first): whether a multiplier
 precedes the base ("two-ten" vs "ten-two"), whether units precede tens, and whether one ×
-base is said bare ("ten") or as "one-ten".
+base is said bare ("ten") or as "one-ten". Some languages (with base ≥ 10) also have **irregular teens** — the
+first few numbers above the base (``base+1 .. base+3``) take their own suppletive root rather
+than the regular composition (English *eleven*, *twelve*), and those roots are reused
+compositionally (so "one-hundred eleven", not "one-hundred ten-one").
 
-Simplification: composition is fully regular — there are no irregular teens (English
-*eleven*), no suppletive decades, and no sub-bases (French *quatre-vingts*). A generated
-system therefore reads as tidy and agglutinative; real-language irregularity is a backlog
-item.
+Remaining simplification: no suppletive decades and no sub-bases (French *quatre-vingts*).
 """
 
 from __future__ import annotations
 
 import random
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from conlang.phonology.wordgen import WordGenerator, Romanizer
 
@@ -50,6 +50,7 @@ class NumeralSystem:
     multiplier_before_base: bool
     units_before_tens: bool
     bare_base_for_one: bool
+    irregular: dict[int, Numeral] = field(default_factory=dict)  # suppletive teens, by value
 
     @property
     def max_value(self) -> int:
@@ -63,6 +64,8 @@ class NumeralSystem:
         return Numeral(n, " ".join(p.roman for p in parts), " ".join(p.ipa for p in parts))
 
     def _components(self, n: int) -> list[Numeral]:
+        if n in self.irregular:  # a suppletive teen, used directly and within larger numbers
+            return [self.irregular[n]]
         if n < self.base:
             return [self.atoms[n]]
         if n < self.base ** 2:
@@ -125,6 +128,15 @@ def build_numerals(
     base_word = word_for(base)
     square_word = word_for(base ** 2)
 
+    # Some languages give the first few numbers above the base (base+1 .. base+3) their own
+    # suppletive root (English eleven/twelve) instead of the regular "base + unit"
+    # composition. Restricted to base >= 10, where opaque "teen" roots are the attested
+    # pattern; for a small base (5) regular composition reads more plausibly.
+    irregular: dict[int, Numeral] = {}
+    if base >= 10 and rng.random() < 0.30:
+        for v in range(base + 1, base + 1 + rng.randint(1, 3)):
+            irregular[v] = word_for(v)  # base+3 < base**2 for every rolled base
+
     # A head-final language leans toward modifier-first numerals (multiplier and units
     # before the base), a head-initial one toward base/tens-first.
     return NumeralSystem(
@@ -135,4 +147,5 @@ def build_numerals(
         multiplier_before_base=rng.random() < (0.85 if head_final else 0.55),
         units_before_tens=rng.random() < (0.35 if head_final else 0.10),
         bare_base_for_one=rng.random() < 0.5,
+        irregular=irregular,
     )

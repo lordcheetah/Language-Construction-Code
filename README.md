@@ -122,10 +122,12 @@ opposite-forming adjective affix derives the marked pole of a polar pair — bad
 from the unmarked one when the language has it, otherwise each pole is a suppletive root),
 and a **kinship system** (kin terms plus a rolled typology: siblings distinguished by sex or
 merged into one sex-neutral term, and classificatory parent's-sibling merging where uncle =
-father and aunt = mother, vs. descriptive distinct terms). Still to add: irregular teens /
-suppletive numerals and sub-bases, polysemy networks (chains, not just binary
-colexification), suppletion in basic vocabulary, semantic shift tied to sound change, and
-loanword strata / register.
+father and aunt = mother, vs. descriptive distinct terms), and **irregular teens** (a base-≥10
+language may give the first few numbers above the base — `base+1 … base+3` — their own
+suppletive root, English *eleven/twelve*, reused compositionally in larger numbers). Still to
+add: suppletive decades and sub-bases (French *quatre-vingts*), polysemy networks (chains, not
+just binary colexification), suppletion in basic vocabulary, semantic shift tied to sound
+change, and loanword strata / register.
 
 ### Deferred (Stage 6 "advanced" backlog)
 
