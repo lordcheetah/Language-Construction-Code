@@ -49,6 +49,7 @@ class WritingSystem:
     style: Style = field(default_factory=Style)
     inherent_vowel: str | None = None       # ipa of the abugida's inherent vowel
     digit_glyphs: dict[int, Glyph] = field(default_factory=dict)  # digit value -> glyph
+    punctuation: dict[str, Glyph] = field(default_factory=dict)   # "stop"/"pause"/"word" marks
 
     # --- Rendering a word ------------------------------------------------------------
     def render_segments(self, segments: Sequence[Segment]) -> list[tuple[str, Glyph]]:
@@ -92,21 +93,39 @@ class WritingSystem:
                 i += 1  # unknown segment: skip
         return units
 
-    def word_svg(self, segments: Sequence[Segment], size: int = 80) -> str:
-        units = self.render_segments(segments)
-        if not units:
-            units = [("", Glyph())]
+    def _row_svg(self, glyphs: Sequence[Glyph], size: int) -> str:
+        """Lay out a row of glyphs left to right, one 100-unit cell each, as an SVG."""
+        glyphs = list(glyphs) or [Glyph()]
         cell = 100
         groups = []
-        for i, (_, glyph) in enumerate(units):
+        for i, glyph in enumerate(glyphs):
             inner = glyph.to_svg_group(self.style, slant_transform(self.style.slant))
             groups.append(f'<g transform="translate({i * cell} 0)">{inner}</g>')
-        width = len(units) * cell
-        height = size
+        width = len(glyphs) * cell
         return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{len(units) * size}" '
-            f'height="{height}" viewBox="0 0 {width} 100">{"".join(groups)}</svg>'
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{len(glyphs) * size}" '
+            f'height="{size}" viewBox="0 0 {width} 100">{"".join(groups)}</svg>'
         )
+
+    def word_svg(self, segments: Sequence[Segment], size: int = 80) -> str:
+        return self._row_svg([g for _, g in self.render_segments(segments)], size)
+
+    def sentence_svg(
+        self, words: Sequence[Sequence[Segment]], terminator: str = "stop", size: int = 80
+    ) -> str:
+        """Render several words in a row, separated by the word divider and closed by a
+        terminal mark. A missing divider/terminator just leaves a blank cell / no mark, so a
+        script with no punctuation degrades to spaced (or run-on) writing."""
+        divider = self.punctuation.get("word", Glyph())
+        glyphs: list[Glyph] = []
+        for i, word in enumerate(words):
+            if i > 0:
+                glyphs.append(divider)
+            glyphs.extend(g for _, g in self.render_segments(word))
+        terminal = self.punctuation.get(terminator)
+        if terminal is not None:
+            glyphs.append(terminal)
+        return self._row_svg(glyphs, size)
 
     # --- Numbers ---------------------------------------------------------------------
     def number_svg(self, n: int, base: int, size: int = 80) -> str:
@@ -217,6 +236,22 @@ def maya_digit(v: int) -> Glyph:
 
 def build_digit_glyphs(max_digit: int = 19) -> dict[int, Glyph]:
     return {v: maya_digit(v) for v in range(max_digit + 1)}
+
+
+# --- Punctuation marks (pure geometry, like the digits) -----------------------------
+def build_punctuation() -> dict[str, Glyph]:
+    """Three punctuation marks, in the spirit of the Brahmic daṇḍa and the interpunct:
+
+    - ``stop``  — a full-height vertical stroke ending a sentence (the daṇḍa).
+    - ``pause`` — a half-height stroke for a clause/phrase break.
+    - ``word``  — a centred dot dividing words (an interpunct), for scripts that mark word
+      boundaries rather than leaving them blank.
+    """
+    return {
+        "stop": Glyph((Line(50, 14, 50, 90),)),
+        "pause": Glyph((Line(50, 52, 50, 90),)),
+        "word": Glyph((Circle(50, 52, 4, filled=True),)),
+    }
 
 
 def _to_base_digits(n: int, base: int) -> list[int]:

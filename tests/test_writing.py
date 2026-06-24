@@ -15,7 +15,8 @@ from conlang.phonology.inventory import Inventory
 from conlang.writing.glyph import Glyph, Style, Line, Circle
 from conlang.writing.featural import consonant_glyph, vowel_glyph, vowel_diacritic
 from conlang.writing.system import (
-    WritingSystem, WritingSystemType, maya_digit, build_digit_glyphs, _to_base_digits,
+    WritingSystem, WritingSystemType, maya_digit, build_digit_glyphs, build_punctuation,
+    _to_base_digits,
 )
 from conlang.writing.generator import build_writing_system
 
@@ -204,6 +205,33 @@ def test_number_svg_rejects_a_base_beyond_the_digit_glyphs():
     ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
     with pytest.raises(ValueError):
         ws.number_svg(5, base=36)  # only 0..19 digit glyphs exist
+
+
+# --- Punctuation --------------------------------------------------------------------
+def test_punctuation_marks_are_distinct():
+    marks = build_punctuation()
+    assert set(marks) == {"stop", "pause", "word"}
+    assert len({g.svg() for g in marks.values()}) == 3  # all three look different
+
+
+def test_sentence_svg_inserts_dividers_and_a_terminator():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    words = [segs("p a"), segs("t i"), segs("k u")]  # 3 words, 2 glyph units each
+    root = ET.fromstring(ws.sentence_svg(words, terminator="stop"))
+    cells = [c for c in root if c.tag.endswith("g")]
+    # 3 words x 2 units + 2 word dividers + 1 terminal stop = 9 cells
+    assert len(cells) == 3 * 2 + 2 + 1
+
+
+def test_sentence_svg_without_punctuation_degrades_to_spacing():
+    # A hand-built system with no punctuation still produces well-formed, run-on output.
+    ws = WritingSystem(WritingSystemType.ALPHABET, {}, {}, {})
+    assert is_well_formed_svg(ws.sentence_svg([segs("p a"), segs("t i")]))
+
+
+def test_generated_system_has_punctuation():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    assert set(ws.punctuation) == {"stop", "pause", "word"}
 
 
 # --- Generator ----------------------------------------------------------------------

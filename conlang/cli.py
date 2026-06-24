@@ -388,17 +388,21 @@ def cmd_writing(args) -> int:
     chart_path = os.path.join(out_dir, "chart.svg")
     word_path = os.path.join(out_dir, "word.svg")
     number_path = os.path.join(out_dir, "number.svg")
+    sentence_path = os.path.join(out_dir, "sentence.svg")
     with open(chart_path, "w", encoding="utf-8") as fh:
         fh.write(ws.chart_svg())
     with open(word_path, "w", encoding="utf-8") as fh:
         fh.write(ws.word_svg(segments))
     with open(number_path, "w", encoding="utf-8") as fh:
         fh.write(ws.number_svg(42, base=10))  # the number 42 in bars-and-dots, base 10
+    with open(sentence_path, "w", encoding="utf-8") as fh:
+        fh.write(ws.sentence_svg([segments, segments], terminator="stop"))
 
     print(f"\nSample word: {word.roman} /{word.ipa}/")
     print(f"Wrote glyph chart -> {chart_path}")
     print(f"Wrote sample word -> {word_path}")
     print(f"Wrote the number 42 -> {number_path}")
+    print(f"Wrote a sample sentence -> {sentence_path}")
     return 0
 
 
@@ -447,15 +451,29 @@ def cmd_generate(args) -> int:
         word_path = os.path.join(args.out, "word.svg")
         sample = lang.lexicon.get("woman") or next(iter(lang.lexicon.entries.values()))
         number_path = os.path.join(args.out, "number.svg")
+        sentence_path = os.path.join(args.out, "sentence.svg")
         with open(chart_path, "w", encoding="utf-8") as fh:
             fh.write(lang.writing.chart_svg())
         with open(word_path, "w", encoding="utf-8") as fh:
             fh.write(lang.writing.word_svg(list(sample.form)))
         with open(number_path, "w", encoding="utf-8") as fh:
             fh.write(lang.writing.number_svg(2024, lang.numerals.base))
+        with open(sentence_path, "w", encoding="utf-8") as fh:
+            words = [list(e.form) for e in _sample_sentence_words(lang)]
+            fh.write(lang.writing.sentence_svg(words, terminator="stop"))
         print(f"\nWrote script -> {chart_path}, {word_path} (the word for '{sample.gloss}')")
         print(f"Wrote 2024 (base {lang.numerals.base}) -> {number_path}")
+        print(f"Wrote a sample sentence -> {sentence_path}")
     return 0
+
+
+def _sample_sentence_words(lang):
+    """A few real dictionary words to render as a written sentence (skips missing glosses)."""
+    entries = [lang.lexicon.get(g) for g in ("person", "see", "bird")]
+    entries = [e for e in entries if e is not None]
+    if not entries:  # fall back to the first few headwords
+        entries = list(lang.lexicon.entries.values())[:3]
+    return entries
 
 
 def cmd_speak(args) -> int:
