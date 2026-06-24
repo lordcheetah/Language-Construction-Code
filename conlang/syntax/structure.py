@@ -44,6 +44,7 @@ class NounPhrase:
     definiteness: str | None = None  # "def" / "indef" / None (unmarked)
     genitive: "NounPhrase | None" = None  # a possessor noun phrase
     relative: "RelativeClause | None" = None  # a modifying relative clause
+    person: str | None = None  # "1"/"2"/"3" for a pronoun; None = a 3rd-person full NP
 
     @property
     def gloss(self) -> str:

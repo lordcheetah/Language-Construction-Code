@@ -47,7 +47,13 @@ from conlang.writing.system import WritingSystem
 # v8: a privative derivation can derive antonyms (bad/small/cold) from their base words.
 # v9: paradigms may roll stem allomorphy (a bound stem), changing morphology RNG.
 # v10: syntax rolls a ditransitive alignment, shifting the shared RNG before lexicon/writing.
-GENERATOR_VERSION = 10
+# v11: syntax rolls a pro-drop parameter (another shared-RNG draw before lexicon/writing).
+GENERATOR_VERSION = 11
+
+# Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
+# licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
+# default but resist null realization, so they are treated as ordinary full NPs.
+_PRONOUN_PERSON = {"I": "1", "we": "1", "you": "2"}
 
 
 @dataclass
@@ -211,6 +217,7 @@ class Language:
             if subject_adjective else None,
             number=subject_number,
             definiteness=subject_definiteness,
+            person=_PRONOUN_PERSON.get(subject),  # a pronoun subject carries its person
         )
         obj_np = None
         if obj is not None:

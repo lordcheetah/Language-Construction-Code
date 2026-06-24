@@ -387,6 +387,82 @@ def test_compound_sentence_coordinates_whole_clauses():
     assert forms(lin.linearize(compound)) == ["mi", "ta", "wa", "po", "ta"]
 
 
+# --- Pro-drop -----------------------------------------------------------------------
+PERSON = CATEGORIES["person"]
+I_PRON = lex("n i", "noun", "I")
+
+
+def _agreeing_system() -> MorphologySystem:
+    # A verb with rich agreement (marks both person and number), which licenses pro-drop.
+    system = _system()  # noun marks number+case; verb (replaced below) marks person+number
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (PERSON, NUMBER))
+    verb.agglutinative_affixes[("person", "1")] = Affix(
+        (data.vowel("o"),), Position.SUFFIX, FeatureBundle.of(person="1"), "1"
+    )
+    verb.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    system.paradigms["verb"] = verb
+    return system
+
+
+def test_verb_agrees_with_the_subject_person():
+    lin = Linearizer(_params(WordOrder.SVO), _agreeing_system())  # pro_drop off (default)
+    first = forms(lin.linearize(Clause(NounPhrase(I_PRON, person="1"), SEE, NounPhrase(BIRD))))
+    third = forms(lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))))
+    assert first[1] == "tao"  # 1st-person subject -> verb takes the -o agreement suffix
+    assert third[1] == "ta"   # full NP -> 3rd person (base, zero affix)
+
+
+def test_pro_drop_omits_a_pronominal_subject_under_rich_agreement():
+    lin = Linearizer(_params(WordOrder.SVO, pro_drop=True), _agreeing_system())
+    clause = Clause(NounPhrase(I_PRON, person="1"), SEE, NounPhrase(BIRD))
+    # 'I' is dropped; the verb's 1st-person agreement recovers it: just V O -> tao pon
+    assert forms(lin.linearize(clause)) == ["tao", "pon"]
+
+
+def test_pro_drop_keeps_a_full_noun_phrase_subject():
+    lin = Linearizer(_params(WordOrder.SVO, pro_drop=True), _agreeing_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))  # person=None -> not a pronoun
+    assert forms(lin.linearize(clause))[0] == "mi"  # subject present
+
+
+def test_pro_drop_does_not_drop_a_questioned_subject():
+    lin = Linearizer(_params(WordOrder.SVO, pro_drop=True), _agreeing_system())
+    who = lex("s i", "noun", "who")
+    clause = Clause(NounPhrase(who, person="3"), SEE, NounPhrase(BIRD), questioned=Role.SUBJECT)
+    assert "si" in forms(lin.linearize(clause))  # a questioned subject can't be dropped
+
+
+def test_pro_drop_requires_rich_agreement_to_drop():
+    # _system()'s verb marks only number, so person can't be recovered -> no drop.
+    lin = Linearizer(_params(WordOrder.SVO, pro_drop=True), _system())
+    clause = Clause(NounPhrase(I_PRON, person="1"), SEE, NounPhrase(BIRD))
+    assert "ni" in forms(lin.linearize(clause))  # subject kept
+
+
+def test_pro_drop_keeps_the_subject_under_ergative_alignment():
+    # Under ergative alignment the transitive verb agrees with the object, not the subject,
+    # so a dropped subject would be unrecoverable: it must be kept.
+    lin = Linearizer(
+        _params(WordOrder.SVO, pro_drop=True, alignment=Alignment.ERGATIVE_ABSOLUTIVE),
+        _agreeing_system(),
+    )
+    clause = Clause(NounPhrase(I_PRON, person="1"), SEE, NounPhrase(BIRD))
+    out = forms(lin.linearize(clause))
+    assert any(w.startswith("ni") for w in out)  # subject kept (ergative-marked) despite pro-drop
+    assert len(out) == 3  # subject, verb, object all present
+
+
+def test_pro_drop_works_for_a_second_person_subject():
+    lin = Linearizer(_params(WordOrder.SVO, pro_drop=True), _agreeing_system())
+    you = lex("k a", "noun", "you")
+    clause = Clause(NounPhrase(you, person="2"), SEE, NounPhrase(BIRD))
+    # 'you' dropped; verb has no 2nd-person suffix in this toy system, so it is the bare base
+    out = forms(lin.linearize(clause))
+    assert "ka" not in out and out == ["ta", "pon"]
+
+
 # --- Ditransitives ------------------------------------------------------------------
 def _ditrans_system() -> MorphologySystem:
     system = _system()  # noun marks number (PL=-s) and case (ACC=-n)

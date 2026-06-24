@@ -94,8 +94,11 @@ resolves to plural agreement, each conjunct keeps the same core case, and an abs
 coordinator degrades to asyndetic juxtaposition), and **ditransitives** (a recipient /
 indirect object marked by the language's ditransitive alignment — indirective: dative
 recipient + accusative theme; secundative: the cases swapped — the recipient placed before
-the theme, with object-gapping and wh-fronting affecting only the theme). Still to build:
-verb-second, pro-drop, oblique/adjunct wh and auxiliary inversion, object agreement and
+the theme, with object-gapping and wh-fronting affecting only the theme), and **pro-drop**
+(a pronominal subject is left null when the verb's agreement is rich enough — marks both
+person and number — to recover it; the verb now agrees with the subject's person, and an
+ergative language keeps the subject since its transitive verb agrees with the object). Still
+to build: verb-second, oblique/adjunct wh and auxiliary inversion, object agreement and
 differential object marking, and free-word articles. Oblique phrases are still placed
 clause-finally rather than by a positional parameter.
 

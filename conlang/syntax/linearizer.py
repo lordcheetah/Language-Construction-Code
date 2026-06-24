@@ -123,7 +123,8 @@ class Linearizer:
             raise ValueError("an indirect object (recipient) requires a direct object")
         transitive = clause.is_transitive
         constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
-        if not clause.is_imperative and omit is not Role.SUBJECT:
+        drop_subject = clause.is_imperative or self._pro_drops_subject(clause)
+        if not drop_subject and omit is not Role.SUBJECT:
             constituents["S"] = self._argument(
                 clause.subject, self._core_case(Role.SUBJECT, transitive)
             )
@@ -156,6 +157,24 @@ class Linearizer:
         for pp in clause.obliques:
             words.extend(self._adpositional_phrase(pp))
         return words
+
+    def _pro_drops_subject(self, clause: Clause) -> bool:
+        """True if a pronominal subject should be left null (pro-drop).
+
+        Only a pronoun (a subject NP with a person) can drop, never a questioned subject,
+        and only when the verb's agreement marks both person and number — so the dropped
+        argument is recoverable from the verb (the rich-agreement licensing condition). The
+        verb must agree with the *subject*: under ergative alignment a transitive verb agrees
+        with the absolutive object instead, so its subject cannot be recovered and is kept.
+        """
+        if not self.params.pro_drop or clause.questioned is Role.SUBJECT:
+            return False
+        if getattr(clause.subject, "person", None) is None:
+            return False
+        if clause.is_transitive and self.params.alignment is Alignment.ERGATIVE_ABSOLUTIVE:
+            return False  # the verb agrees with the object here, not the subject
+        marked = self._marked(clause.verb.word_class)
+        return "person" in marked and "number" in marked
 
     def _object_cases(self, clause: Clause, transitive: bool) -> tuple[str, str]:
         """The (recipient, theme) cases. For a monotransitive the theme takes the normal
@@ -269,8 +288,9 @@ class Linearizer:
             agr = clause.object
         else:
             agr = clause.subject
-        # Imperative addresses the listener: 2nd person, number from the (dropped) subject.
-        person = "2" if clause.is_imperative else "3"
+        # Imperative addresses the listener (2nd person); otherwise the verb agrees with the
+        # subject's person — a pronoun carries 1/2/3, a full NP defaults to 3rd person.
+        person = "2" if clause.is_imperative else (getattr(agr, "person", None) or "3")
         mood = "imperative" if clause.is_imperative else "indicative"
         polarity = "negative" if self._verbal_negation(clause) else "affirmative"
         bundle = FeatureBundle.of(

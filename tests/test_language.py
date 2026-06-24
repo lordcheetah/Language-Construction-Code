@@ -129,6 +129,28 @@ def test_make_sentence_recipient_requires_a_direct_object():
         lang.make_sentence("woman", "give", recipient="child")  # no direct object
 
 
+def test_make_sentence_pro_drop_omits_a_pronoun_subject():
+    import dataclasses
+
+    # a language whose verb marks both person and number (rich agreement)
+    for seed in range(60):
+        lang = Language.generate(seed)
+        verb = lang.morphology.paradigms.get("verb")
+        marked = {c.name for c in verb.marked} if verb else set()
+        if {"person", "number"} <= marked:
+            break
+    else:
+        raise AssertionError("no rich-agreement seed found in range")
+    pro = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, pro_drop=True))
+    no_pro = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, pro_drop=False))
+    # the personal-pronoun subject "I" is dropped only in the pro-drop language
+    assert len(pro.make_sentence("I", "run").words) < len(no_pro.make_sentence("I", "run").words)
+    # a full lexical subject is never dropped, even under pro-drop
+    assert len(pro.make_sentence("person", "run").words) == len(no_pro.make_sentence("person", "run").words)
+    # a demonstrative ("this") is not a personal pronoun -> never dropped either
+    assert len(pro.make_sentence("this", "run").words) == len(no_pro.make_sentence("this", "run").words)
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

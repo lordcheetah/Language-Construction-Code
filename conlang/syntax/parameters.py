@@ -107,6 +107,7 @@ class SyntaxParameters:
     polar_question: PolarQuestion = PolarQuestion.PARTICLE_FINAL
     wh_fronting: bool = False  # content questions move the wh-word clause-initial
     ditransitive: DitransitiveAlignment = DitransitiveAlignment.INDIRECTIVE
+    pro_drop: bool = False  # a pronominal subject may be dropped when agreement recovers it
 
     def describe(self) -> str:
         wh = "fronted" if self.wh_fronting else "in situ"
@@ -119,7 +120,8 @@ class SyntaxParameters:
             f"  alignment:   {self.alignment.value}\n"
             f"  negation:    {self.negation.value}\n"
             f"  questions:   {self.polar_question.value}; wh-words {wh}\n"
-            f"  ditransitive: {self.ditransitive.value}"
+            f"  ditransitive: {self.ditransitive.value}\n"
+            f"  pro-drop:    {'yes' if self.pro_drop else 'no'} (null pronominal subjects)"
         )
 
 
@@ -177,6 +179,10 @@ def derive_correlates(
         0.80, DitransitiveAlignment.INDIRECTIVE, DitransitiveAlignment.SECUNDATIVE
     )
 
+    # Null-subject languages are common; the linearizer only actually drops a pronoun when
+    # the verb's agreement is rich enough to recover it, so this is a permission, not a rule.
+    pro_drop = rng.random() < 0.45
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -188,4 +194,5 @@ def derive_correlates(
         polar_question=polar_question,
         wh_fronting=wh_fronting,
         ditransitive=ditransitive,
+        pro_drop=pro_drop,
     )
