@@ -11,7 +11,9 @@ import random
 import wave
 
 from conlang.phonology import data
-from conlang.speech.phones import Source, Phone, plan_phone, vowel_formants, consonant_formants
+from conlang.speech.phones import (
+    Source, Phone, plan_phone, vowel_formants, consonant_formants, apply_velar_pinch,
+)
 from conlang.speech.synth import Voice, Synthesizer, _to_pcm16
 
 
@@ -48,6 +50,70 @@ def test_consonant_f2_locus_tracks_place():
     k = consonant_formants(data.consonant("k"))[1]
     assert p < t < k or p < k  # bilabial locus is the lowest
     assert p < t
+
+
+def _velar_f2(symbols):
+    """The F2 locus of the /k/ in a planned, velar-pinched segment string."""
+    s = segs(symbols)
+    phones = apply_velar_pinch(s, [plan_phone(x) for x in s])
+    return next(p.formants[1] for seg, p in zip(s, phones) if seg.ipa == "k")
+
+
+def test_velar_pinch_tracks_the_adjacent_vowel():
+    # The velar locus rises next to a front vowel /i/ and falls next to a back vowel /u/.
+    assert _velar_f2("k i") > _velar_f2("k u")
+    assert _velar_f2("i k") > _velar_f2("u k")              # works on either side
+    # /a..u/ flanking averages the two vowels' F2, landing between the single-vowel cases
+    assert _velar_f2("u k") < _velar_f2("a k u") < _velar_f2("a k")
+
+
+def test_velar_pinch_leaves_other_consonants_and_lone_velars_untouched():
+    default_k = consonant_formants(data.consonant("k"))[1]
+    # a velar with no adjacent vowel keeps its default locus
+    s = segs("k")
+    assert apply_velar_pinch(s, [plan_phone(x) for x in s])[0].formants[1] == default_k
+    # a non-velar consonant is never pinched
+    s = segs("t u")
+    pinched = apply_velar_pinch(s, [plan_phone(x) for x in s])
+    assert pinched[0].formants == plan_phone(data.consonant("t")).formants
+
+
+def test_velar_pinch_applies_to_fricatives_but_not_the_nasal():
+    # the velar fricative /x/ is an obstruent -> pinched; the velar nasal /ŋ/ is not
+    s = segs("x i")
+    x_phones = apply_velar_pinch(s, [plan_phone(y) for y in s])
+    assert x_phones[0].formants[1] != consonant_formants(data.consonant("x"))[1]
+    s = segs("ŋ i")
+    ng_phones = apply_velar_pinch(s, [plan_phone(y) for y in s])
+    assert ng_phones[0].formants == plan_phone(data.consonant("ŋ")).formants  # untouched
+
+
+def test_velar_pinch_moves_only_f2_not_f3():
+    s = segs("k u")
+    p = apply_velar_pinch(s, [plan_phone(x) for x in s])[0]
+    default = consonant_formants(data.consonant("k"))
+    assert p.formants[0] == default[0] and p.formants[2] == default[2]  # F1, F3 unchanged
+    assert p.formants[1] != default[1]                                  # only F2 moved
+
+
+def test_velarless_word_is_unchanged_by_the_pinch():
+    s = segs("p a t i")
+    before = [plan_phone(x) for x in s]
+    assert apply_velar_pinch(s, list(before)) == before  # byte-identical, a no-op
+
+
+def test_velar_pinch_bends_the_synthesized_formant_track():
+    # Compare the synth's own F2 track for the same word with vs. without the pinch applied,
+    # isolating the velar locus shift (the durations, hence the timeline, are identical).
+    sy = Synthesizer(Voice())
+    s = segs("a k a")
+    plain = [plan_phone(x) for x in s]
+    pinched = apply_velar_pinch(s, [plan_phone(x) for x in s])
+    sr = sy.voice.sample_rate
+    total = sum(max(1, int(src.duration * sr)) for ph in pinched for src in ph.sources)
+    _, f2_plain, _ = sy._formant_tracks(plain, total)
+    _, f2_pinched, _ = sy._formant_tracks(pinched, total)
+    assert f2_plain != f2_pinched  # the velar's pinched locus changes the F2 transitions
 
 
 def test_plan_shapes_by_manner():

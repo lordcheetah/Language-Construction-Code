@@ -38,9 +38,10 @@ These sit on top of the whole engine and ship last:
   height/backness → formants, consonant manner → buzz/noise/burst, voicing → glottal
   source) and writes a 16-bit WAV. It synthesizes the whole word in one pass through
   time-varying resonators with **formant transitions** — a vowel glides toward each
-  neighbouring consonant's locus, so place of articulation is actually audible. Robotic but
-  real, offline, and deterministic. Backlog: parallel-formant amplitudes, a vowel-sensitive
-  velar locus, and an optional `espeak-ng` backend.
+  neighbouring consonant's locus, so place of articulation is actually audible — and the
+  **velar pinch**, where a velar's F2 locus assimilates toward the adjacent vowel (higher by
+  a front vowel, lower by a back one). Robotic but real, offline, and deterministic. Backlog:
+  parallel-formant amplitudes and an optional `espeak-ng` backend.
 - **Tutorial** *(done)* — `conlang.tutorial`: an interactive, guided walkthrough that
   teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
   random one) and watch a `Language` take shape, ending with a sample sentence and the seed

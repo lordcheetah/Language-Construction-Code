@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from conlang.phonology.features import Segment
-from conlang.speech.phones import Phone, plan_phone
+from conlang.speech.phones import Phone, plan_phone, apply_velar_pinch
 
 # Formant bandwidths (Hz) for the three resonators; fixed, the frequencies vary over time.
 _BW = (80.0, 90.0, 150.0)
@@ -43,7 +43,7 @@ class Synthesizer:
     def synthesize(self, segments: Sequence[Segment]) -> list[float]:
         self.rng.setstate(self._rng0)
         sr = self.voice.sample_rate
-        phones = [plan_phone(s) for s in segments]
+        phones = apply_velar_pinch(segments, [plan_phone(s) for s in segments])
         segs = [(max(1, int(s.duration * sr / self.voice.rate)), s)
                 for ph in phones for s in ph.sources]
         total = sum(n for n, _ in segs)

@@ -15,7 +15,8 @@ only shapes the neighbours' transitions, since the obstruent itself is silence o
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Sequence
 
 from conlang.phonology.features import (
     Segment,
@@ -105,9 +106,50 @@ def consonant_formants(c: Consonant) -> tuple:
         if c.place is Place.PALATAL:
             return (300, 2200, 2900)  # /j/ ~ i
         return (300, 800, 2200)       # /w/ ~ u
-    # Obstruents: low F1, place-based F2 locus. The velar locus is fixed (~2000); real
-    # velars vary with the adjacent vowel (the "velar pinch") — a deliberate simplification.
+    # Obstruents: low F1, place-based F2 locus. The velar locus here is the context-free
+    # default (~2000); :func:`apply_velar_pinch` shifts it toward the adjacent vowel's F2
+    # (the "velar pinch") once the surrounding segments are known.
     return (300, f2, 2500)
+
+
+# --- Velar pinch (context-sensitive locus) ------------------------------------------
+_VELAR_OBSTRUENT_MANNERS = (Manner.PLOSIVE, Manner.AFFRICATE, Manner.FRICATIVE)
+_PINCH = 0.6  # how far the velar locus moves from its default toward the vowel's F2
+
+
+def _is_velar_obstruent(seg: Segment) -> bool:
+    return (
+        isinstance(seg, Consonant)
+        and seg.place is Place.VELAR
+        and seg.manner in _VELAR_OBSTRUENT_MANNERS
+    )
+
+
+def apply_velar_pinch(segments: Sequence[Segment], phones: list[Phone]) -> list[Phone]:
+    """Shift each velar obstruent's F2 locus toward its flanking vowels' F2 (the velar pinch).
+
+    A velar's place cue is not fixed: next to a front vowel the constriction is fronter and
+    F2 rises (toward palatal), next to a back vowel F2 falls. ``phones`` must be parallel to
+    ``segments`` — exactly one phone per segment, same order (as :func:`plan_phone` mapped
+    over the segments produces). Velars with no adjacent vowel keep the default locus. Only F2
+    moves; the classic pinch also lowers F3 toward F2, which this toy synth leaves fixed.
+    """
+    assert len(phones) == len(segments), "phones must be parallel to segments (one each)"
+    out = list(phones)
+    for i, seg in enumerate(segments):
+        if not _is_velar_obstruent(seg):
+            continue
+        neighbour_f2 = [
+            vowel_formants(segments[j])[1]
+            for j in (i - 1, i + 1)
+            if 0 <= j < len(segments) and isinstance(segments[j], Vowel)
+        ]
+        if not neighbour_f2:
+            continue
+        target = sum(neighbour_f2) / len(neighbour_f2)
+        f1, f2, f3 = phones[i].formants
+        out[i] = replace(phones[i], formants=(f1, f2 + _PINCH * (target - f2), f3))
+    return out
 
 
 # --- The plan -----------------------------------------------------------------------
