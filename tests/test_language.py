@@ -166,6 +166,30 @@ def test_make_sentence_free_articles_add_determiner_words():
     assert any(w.gloss == "INDEF" for w in with_art.words)
 
 
+def test_make_sentence_differential_object_marking():
+    import dataclasses
+
+    from conlang.syntax.parameters import Alignment
+
+    # a nominative-accusative language whose noun actually marks case
+    for seed in range(60):
+        lang = Language.generate(seed)
+        noun = lang.morphology.paradigms.get("noun")
+        if (noun and any(c.name == "case" for c in noun.marked)
+                and lang.syntax.alignment is Alignment.NOMINATIVE_ACCUSATIVE):
+            break
+    else:
+        raise AssertionError("no nom-acc, case-marking seed found")
+    dom = dataclasses.replace(
+        lang, syntax=dataclasses.replace(lang.syntax, differential_object_marking=True)
+    )
+    definite = dom.make_sentence("woman", "see", "bird", object_definiteness="def")
+    indefinite = dom.make_sentence("woman", "see", "bird", object_definiteness="indef")
+    # the definite object is accusative-marked; the indefinite one is left unmarked
+    assert any("bird" in w.gloss and "ACC" in w.gloss for w in definite.words)
+    assert not any("bird" in w.gloss and "ACC" in w.gloss for w in indefinite.words)
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

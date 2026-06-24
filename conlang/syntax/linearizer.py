@@ -182,11 +182,32 @@ class Linearizer:
         the language's alignment: indirective = dative recipient + object-case theme;
         secundative = object-case recipient + dative theme."""
         object_case = self._core_case(Role.OBJECT, transitive)
+        theme_case = self._dom_adjusted(clause.object, object_case)
         if clause.indirect_object is None:
-            return object_case, object_case
+            return object_case, theme_case
         if self.params.ditransitive is DitransitiveAlignment.SECUNDATIVE:
             return object_case, "dat"   # recipient is the primary object; theme set apart
-        return "dat", object_case       # indirective: recipient set apart in the dative
+        return "dat", theme_case        # indirective: recipient set apart in the dative
+
+    def _dom_adjusted(self, obj, case: str) -> str:
+        """Differential object marking: a low-prominence object — here an indefinite or bare
+        one — is left in the unmarked case even where the alignment would mark it accusative.
+        Definite objects keep the overt accusative (the marked/prominent half of the split).
+
+        A bare object (no definiteness) and an interrogative object (a wh-word, which has no
+        definiteness) both count as non-prominent and are left unmarked. A coordinated object
+        is prominent only if every conjunct is definite.
+        """
+        if (case == "acc"
+                and self.params.differential_object_marking
+                and not self._is_prominent_object(obj)):
+            return "nom"
+        return case
+
+    def _is_prominent_object(self, obj) -> bool:
+        if isinstance(obj, Coordination):
+            return all(getattr(c, "definiteness", None) == "def" for c in obj.conjuncts)
+        return getattr(obj, "definiteness", None) == "def"
 
     # --- Case / alignment ------------------------------------------------------------
     def _core_case(self, role: Role, transitive: bool) -> str:

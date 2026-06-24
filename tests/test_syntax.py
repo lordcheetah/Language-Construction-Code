@@ -428,6 +428,95 @@ def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
     assert not any("DU" in w.gloss for w in out.words)
 
 
+# --- Differential object marking ----------------------------------------------------
+def test_dom_marks_only_definite_objects():
+    lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _system())
+    definite = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="def"))
+    indefinite = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="indef"))
+    assert forms(lin.linearize(definite)) == ["mi", "ta", "pon"]    # definite -> accusative -n
+    assert forms(lin.linearize(indefinite)) == ["mi", "ta", "po"]   # indefinite -> unmarked
+
+
+def test_dom_off_marks_every_object_uniformly():
+    lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=False), _system())
+    for d in ("def", "indef", None):
+        clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness=d))
+        assert forms(lin.linearize(clause)) == ["mi", "ta", "pon"]  # always accusative
+
+
+def test_dom_has_no_effect_under_ergative_alignment():
+    # the object is absolutive (unmarked) under ergative, so DOM has nothing to strip
+    lin = Linearizer(
+        _params(WordOrder.SVO, alignment=Alignment.ERGATIVE_ABSOLUTIVE,
+                differential_object_marking=True),
+        _system(),
+    )
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="indef"))
+    out = forms(lin.linearize(clause))
+    assert "min" in out and "po" in out  # ergative agent marked, absolutive object bare
+
+
+def test_dom_applies_to_a_ditransitive_theme():
+    lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="indef"),
+                    indirect_object=NounPhrase(CHILD))
+    out = forms(lin.linearize(clause))
+    # recipient stays dative; the indefinite theme is left unmarked (po, not pon)
+    assert "dul" in out and "po" in out and "pon" not in out
+
+
+def test_dom_leaves_a_bare_object_unmarked():
+    lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))  # no definiteness
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "po"]  # bare -> unmarked
+
+
+def test_dom_does_not_touch_the_subject():
+    # the (ergative-marked) transitive subject is unaffected by DOM; only the object differs
+    lin = Linearizer(_params(WordOrder.SVO, alignment=Alignment.ERGATIVE_ABSOLUTIVE,
+                             differential_object_marking=True), _system())
+    out = forms(lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="indef"))))
+    assert out[0] == "min"  # subject keeps its ergative marking regardless of DOM
+
+
+def test_dom_marks_a_fully_definite_coordinated_object():
+    lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _system(),
+                     particles={"and": lex("w a", "particle", "and")})
+    both_def = Coordination(
+        [NounPhrase(BIRD, definiteness="def"), NounPhrase(WOMAN, definiteness="def")], "and"
+    )
+    out = forms(lin.linearize(Clause(NounPhrase(WOMAN), SEE, both_def)))
+    assert "pon" in out and "min" in out  # both conjuncts keep the accusative (all definite)
+    has_indef = Coordination(
+        [NounPhrase(BIRD, definiteness="def"), NounPhrase(WOMAN, definiteness="indef")], "and"
+    )
+    out2 = forms(lin.linearize(Clause(NounPhrase(WOMAN), SEE, has_indef)))
+    assert "po" in out2 and "mi" in out2  # a non-definite conjunct -> the whole object unmarked
+
+
+def test_dom_strips_the_accusative_from_a_wh_object():
+    what = lex("s i", "noun", "what")
+    on = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _system())
+    off = Linearizer(_params(WordOrder.SVO, differential_object_marking=False), _system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(what), questioned=Role.OBJECT)
+    # without DOM the wh-object is accusative (sin); under DOM (non-specific) it is unmarked (si)
+    assert "sin" in forms(off.linearize(clause))
+    assert "si" in forms(on.linearize(clause)) and "sin" not in forms(on.linearize(clause))
+
+
+def test_dom_coexists_with_free_articles():
+    # a definite object in an article+DOM language gets BOTH a determiner and the accusative
+    lin = Linearizer(
+        _params(WordOrder.SVO, articles=True, differential_object_marking=True), _system(),
+        particles={"art_def": lex("d o", "particle", "that"),
+                   "art_indef": lex("m o", "particle", "one")},
+    )
+    out = lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="def")))
+    glosses = [w.gloss for w in out.words]
+    assert "DEF" in glosses                                  # the determiner word
+    assert any("bird" in g and "ACC" in g for g in glosses)  # and the accusative case
+
+
 # --- Pro-drop -----------------------------------------------------------------------
 PERSON = CATEGORIES["person"]
 I_PRON = lex("n i", "noun", "I")
