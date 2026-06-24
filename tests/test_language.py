@@ -151,6 +151,21 @@ def test_make_sentence_pro_drop_omits_a_pronoun_subject():
     assert len(pro.make_sentence("this", "run").words) == len(no_pro.make_sentence("this", "run").words)
 
 
+def test_make_sentence_free_articles_add_determiner_words():
+    import dataclasses
+
+    lang = Language.generate(8)
+    art = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, articles=True))
+    no_art = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, articles=False))
+    kw = dict(subject_definiteness="def", object_definiteness="indef")
+    with_art = art.make_sentence("woman", "see", "bird", **kw)
+    without = no_art.make_sentence("woman", "see", "bird", **kw)
+    # the article language adds two determiner words (one per definite/indefinite NP)
+    assert len(with_art.words) == len(without.words) + 2
+    assert any(w.gloss == "DEF" for w in with_art.words)
+    assert any(w.gloss == "INDEF" for w in with_art.words)
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

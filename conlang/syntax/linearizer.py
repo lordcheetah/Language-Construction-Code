@@ -221,11 +221,15 @@ class Linearizer:
                 "coordination is only supported in subject/object position, not as a "
                 "possessor or relative-clause head"
             )
+        # A free-word-article language realizes definiteness as a separate determiner, so the
+        # noun itself is not inflected for it (no double-marking).
+        article = self._article(np.definiteness)
+        bundle_def = None if article is not None else np.definiteness
         noun_bundle = FeatureBundle.of(
-            **_drop_none(case=case, number=np.number, definiteness=np.definiteness)
+            **_drop_none(case=case, number=np.number, definiteness=bundle_def)
         )
         marked = self._marked(np.head.word_class)
-        gloss = np.head.gloss + _grammatical_tags(marked, np.number, case, np.definiteness)
+        gloss = np.head.gloss + _grammatical_tags(marked, np.number, case, bundle_def)
         noun = self._inflected_word(np.head, noun_bundle, gloss)
 
         tokens: list[GlossedWord] = [noun]
@@ -243,7 +247,24 @@ class Linearizer:
             tokens = _place(self.params.genitive, gen, tokens)
         if np.relative is not None:
             tokens = _place(self.params.relative, self._relative_clause(np.relative), tokens)
+        if article is not None:
+            tokens = [article, *tokens]  # the determiner sits at the noun phrase's left edge
         return tokens
+
+    def _article(self, definiteness: str | None) -> GlossedWord | None:
+        """A free article word for a determiner language, else None.
+
+        Definite and indefinite articles commonly grammaticalize from the demonstrative and
+        the numeral 'one'; this reuses those full words (supplied as the ``art_def``/
+        ``art_indef`` particles) rather than a reduced/clitic form. Returns None when the
+        language has no free articles, the NP is bare, or the particle is unavailable — in
+        which case the caller falls back to the morphological definiteness affix.
+        """
+        if not self.params.articles or definiteness not in ("def", "indef"):
+            return None
+        if definiteness == "def":
+            return self._particle("art_def", "DEF")
+        return self._particle("art_indef", "INDEF")
 
     def _relative_clause(self, rc: RelativeClause) -> list[GlossedWord]:
         """The embedded clause with the head's role left as a gap.

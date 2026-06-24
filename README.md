@@ -97,10 +97,13 @@ recipient + accusative theme; secundative: the cases swapped — the recipient p
 the theme, with object-gapping and wh-fronting affecting only the theme), and **pro-drop**
 (a pronominal subject is left null when the verb's agreement is rich enough — marks both
 person and number — to recover it; the verb now agrees with the subject's person, and an
-ergative language keeps the subject since its transitive verb agrees with the object). Still
-to build: verb-second, oblique/adjunct wh and auxiliary inversion, object agreement and
-differential object marking, and free-word articles. Oblique phrases are still placed
-clause-finally rather than by a positional parameter.
+ergative language keeps the subject since its transitive verb agrees with the object), and
+**free-word articles** (definiteness shown by a separate determiner — grammaticalized from
+the demonstrative and the numeral 'one' — at the noun phrase's left edge, suppressing the
+definiteness affix so there is no double-marking; falls back to morphology when absent).
+Still to build: verb-second, oblique/adjunct wh and auxiliary inversion, object agreement
+and differential object marking, and postnominal/suffixed articles. Oblique phrases are
+still placed clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

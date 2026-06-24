@@ -48,7 +48,8 @@ from conlang.writing.system import WritingSystem
 # v9: paradigms may roll stem allomorphy (a bound stem), changing morphology RNG.
 # v10: syntax rolls a ditransitive alignment, shifting the shared RNG before lexicon/writing.
 # v11: syntax rolls a pro-drop parameter (another shared-RNG draw before lexicon/writing).
-GENERATOR_VERSION = 11
+# v12: syntax rolls a free-article parameter (another shared-RNG draw before lexicon/writing).
+GENERATOR_VERSION = 12
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -239,8 +240,11 @@ class Language:
         """The language's grammatical particles (negator, yes/no marker, …) as Lexemes."""
         out = {}
         # Coordinators are keyed by their own gloss ("and"/"or") to match Coordination.coordinator.
+        # Free articles reuse the demonstrative ("that" -> definite) and "one" (-> indefinite),
+        # the usual grammaticalization sources, so they need no new lexemes.
         for key, gloss in (("neg", "not"), ("q", "Q"), ("rel", "REL"),
-                           ("and", "and"), ("or", "or")):
+                           ("and", "and"), ("or", "or"),
+                           ("art_def", "that"), ("art_indef", "one")):
             entry = self.lexicon.get(gloss)
             if entry is not None:
                 out[key] = Lexeme(entry.form, "particle", gloss, entry.inflection_class)

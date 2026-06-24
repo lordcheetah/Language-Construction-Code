@@ -556,6 +556,77 @@ def test_recipient_without_a_direct_object_is_rejected():
         lin.linearize(clause)
 
 
+# --- Free-word articles -------------------------------------------------------------
+_ARTICLE_PARTICLES = {
+    "art_def": lex("d o", "particle", "that"),    # definite article (from a demonstrative)
+    "art_indef": lex("m o", "particle", "one"),   # indefinite article (from 'one')
+}
+
+
+def _article_lin(order=WordOrder.SVO):
+    return Linearizer(_params(order, articles=True), _system(), particles=_ARTICLE_PARTICLES)
+
+
+def test_definite_free_article_precedes_its_noun():
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    out = _article_lin().linearize(clause)
+    assert [w.gloss for w in out.words][:2] == ["DEF", "woman"]
+    assert forms(out)[:2] == ["do", "mi"]  # the article 'do' sits at the NP's left edge
+
+
+def test_indefinite_free_article():
+    clause = Clause(NounPhrase(WOMAN, definiteness="indef"), SEE)
+    assert forms(_article_lin().linearize(clause))[:2] == ["mo", "mi"]
+
+
+def test_a_bare_noun_phrase_takes_no_article():
+    clause = Clause(NounPhrase(WOMAN), SEE)  # no definiteness
+    assert forms(_article_lin().linearize(clause)) == ["mi", "ta"]
+
+
+def test_articles_off_emits_no_article_word():
+    lin = Linearizer(_params(WordOrder.SVO, articles=False), _system(),
+                     particles=_ARTICLE_PARTICLES)
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    assert forms(lin.linearize(clause)) == ["mi", "ta"]  # no article; _system has no def affix
+
+
+def test_free_article_suppresses_the_definiteness_affix():
+    # A noun paradigm that marks definiteness with a -d suffix.
+    DEFN = CATEGORIES["definiteness"]
+    system = _system()
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (DEFN,))
+    noun.agglutinative_affixes[("definiteness", "def")] = Affix(
+        (data.consonant("d"),), Position.SUFFIX, FeatureBundle.of(definiteness="def"), "DEF"
+    )
+    system.paradigms["noun"] = noun
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    # without articles the noun takes the affix: woman+DEF = mid
+    off = Linearizer(_params(WordOrder.SVO, articles=False), system, particles=_ARTICLE_PARTICLES)
+    assert forms(off.linearize(clause))[0] == "mid"
+    # with articles the affix is suppressed (bare 'mi') and the article carries definiteness
+    on = Linearizer(_params(WordOrder.SVO, articles=True), system, particles=_ARTICLE_PARTICLES)
+    out = on.linearize(clause)
+    assert forms(out)[:2] == ["do", "mi"]
+    assert not any(".DEF" in w.gloss for w in out.words)  # no double-marking on the noun
+
+
+def test_articles_on_but_no_article_particle_falls_back_gracefully():
+    # articles=True but no art particles supplied: degrade to the affix path, never crash,
+    # never lose definiteness (mirrors the relativizer/negator fallbacks).
+    lin = Linearizer(_params(WordOrder.SVO, articles=True), _system())  # no particles
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    # _system's noun doesn't mark definiteness, so it surfaces bare — but no crash, no article
+    assert forms(lin.linearize(clause)) == ["mi", "ta"]
+
+
+def test_free_article_sits_outside_an_adjective():
+    clause = Clause(NounPhrase(WOMAN, adjective=BIG, definiteness="def"), SEE)
+    out = forms(_article_lin().linearize(clause))
+    # DET ADJ N (adjective after the noun by _params default): article at the NP's left edge
+    assert out[0] == "do" and out[1:3] == ["mi", "ra"]
+
+
 # --- Stem allomorphy flows through to the surface -----------------------------------
 def test_stem_allomorphy_surfaces_in_a_linearized_sentence():
     from conlang.morphology.paradigm import StemAlternation
