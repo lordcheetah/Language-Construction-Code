@@ -22,7 +22,9 @@ from conlang.morphology.features import (
     Typology,
 )
 from conlang.morphology.affix import Affix, Position
-from conlang.morphology.paradigm import Paradigm, DerivationRule, InflectionClass
+from conlang.morphology.paradigm import (
+    Paradigm, DerivationRule, InflectionClass, StemAlternation,
+)
 from conlang.morphology.generator import random_system
 
 
@@ -172,6 +174,93 @@ def test_sandhi_applies_after_affixation():
     )
     # 'ap' + '-a' = 'apa'; intervocalic voicing then gives 'aba'
     assert ipa(par.inflect(segs("a p"), FeatureBundle.of(number="pl"))) == "aba"
+
+
+# --- Stem allomorphy ----------------------------------------------------------------
+def test_bound_stem_alternation_leaves_citation_form_untouched():
+    # Final voiceless stop voices in the bound stem; the citation (all-base) form is the root.
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = _plural_paradigm(stem_alternation=StemAlternation(rs))
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of())) == "kat"            # citation: no change
+    assert ipa(par.inflect(root, FeatureBundle.of(number="sg"))) == "kat"  # base value: no change
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kads"  # bound stem kad + s
+
+
+def test_stem_alternation_can_be_triggered_by_a_single_category():
+    # Number-triggered umlaut: the stem's final vowel raises only when number is non-base.
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER, GENDER),
+                   stem_alternation=StemAlternation(
+                       RuleSet.from_rules(["a > e / _#"]), trigger_category="number"))
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    par.agglutinative_affixes[("gender", "fem")] = Affix(
+        (data.consonant("n"),), Position.SUFFIX, FeatureBundle.of(gender="fem"), "FEM"
+    )
+    root = segs("m a")
+    assert ipa(par.inflect(root, FeatureBundle.of())) == "ma"                       # citation
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "mes"           # umlaut + PL
+    # gender alone is non-base but number is base -> the trigger category stays base -> no umlaut
+    assert ipa(par.inflect(root, FeatureBundle.of(gender="fem"))) == "man"
+
+
+def test_stem_alternation_composes_with_sandhi():
+    # Allomorphy fires on the bare stem (pre-affix); sandhi fires after affixation. Both run.
+    alt = StemAlternation(RuleSet.from_rules(["a > e / _#"]))                 # stem: final a -> e
+    sandhi = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / V_V"])    # boundary voicing
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,), sandhi=sandhi,
+                   stem_alternation=alt)
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("p"), data.vowel("a")), Position.SUFFIX,
+        FeatureBundle.of(number="pl"), "PL",
+    )
+    # 'ma' -> bound stem 'me' -> + 'pa' = 'mepa' -> intervocalic p voices -> 'meba'
+    assert ipa(par.inflect(segs("m a"), FeatureBundle.of(number="pl"))) == "meba"
+
+
+def test_overtly_inflected_root_that_does_not_match_is_unchanged():
+    # The bound-stem rule targets a final stop; a vowel-final root meets the inflection
+    # trigger but not the rule's structural description, so it does NOT alternate (partial,
+    # phonologically-conditioned allomorphy).
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = _plural_paradigm(stem_alternation=StemAlternation(rs))
+    assert ipa(par.inflect(segs("m a"), FeatureBundle.of(number="pl"))) == "mas"  # no voicing
+
+
+def test_stem_alternation_applies_under_fusional_typology():
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = Paradigm(NOUN, Typology.FUSIONAL, (NUMBER,), stem_alternation=StemAlternation(rs))
+    par.fusional_affixes[FeatureBundle.of(number="pl")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of())) == "kat"            # citation
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kadi"  # bound stem
+
+
+def test_stem_alternation_applies_across_inflection_classes():
+    # The (class-independent) bound stem applies in every declension.
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = _plural_paradigm(stem_alternation=StemAlternation(rs))
+    par.extra_classes["2"] = InflectionClass(
+        {("number", "pl"): Affix((data.vowel("i"),), Position.SUFFIX,
+                                 FeatureBundle.of(number="pl"), "PL")}
+    )
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "1")) == "kads"  # decl 1: kad+s
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "2")) == "kadi"  # decl 2: kad+i
+
+
+def test_generated_stem_alternation_is_reachable():
+    # Some seed organically rolls stem allomorphy on at least one paradigm.
+    found = False
+    for seed in range(25):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        if any(par.stem_alternation is not None for par in system.paradigms.values()):
+            found = True
+            break
+    assert found, "no seed in range organically rolled a stem alternation"
 
 
 # --- Derivation ---------------------------------------------------------------------

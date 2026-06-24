@@ -33,7 +33,9 @@ from conlang.morphology.features import (
     Typology,
 )
 from conlang.morphology.affix import Affix, Position
-from conlang.morphology.paradigm import Paradigm, DerivationRule, InflectionClass
+from conlang.morphology.paradigm import (
+    Paradigm, DerivationRule, InflectionClass, StemAlternation,
+)
 
 # Derivation templates: (from_class, to_class, gloss).
 _DERIVATION_TEMPLATES = [
@@ -149,7 +151,7 @@ def _build_paradigm(
         sandhi=sandhi,
     )
     if not marked:
-        return par
+        return par  # nothing to inflect -> no affixes, and no stem alternation to trigger
 
     n_classes = _choose_class_count(rng, typology)
     # The first inflection class fills the paradigm's own affix fields ("1"). Each extra
@@ -163,7 +165,29 @@ def _build_paradigm(
             rng, base_aggl, base_fus, typology, dominant, inventory
         )
         par.extra_classes[str(k)] = InflectionClass(aggl, fus)
+    par.stem_alternation = _build_stem_alternation(rng)
     return par
+
+
+# Stem-allomorphy templates: a final-edge mutation forming the bound stem. Each is a
+# Stage-2 rule fired (word-finally on the bare stem) whenever the word is overtly inflected.
+_STEM_ALTERNATIONS = (
+    "[voiceless plosive] > [+voiced] / _#",   # final-stop voicing (intervocalic-lenition feel)
+    "[voiced plosive] > [-voiced] / _#",       # final-stop devoicing
+    "a > e / _#",                              # final-vowel raising / umlaut, low -> mid
+    "o > u / _#",                              # ... mid -> high (back)
+    "e > i / _#",                              # ... mid -> high (front)
+)
+
+
+def _build_stem_alternation(rng: random.Random) -> StemAlternation | None:
+    """Roll a bound-stem allomorphy rule for some languages (most have none)."""
+    if rng.random() >= 0.30:
+        return None
+    from conlang.soundchange.ruleset import RuleSet  # local: keep Stage 2 a soft dependency
+
+    rule = rng.choice(_STEM_ALTERNATIONS)
+    return StemAlternation(RuleSet.from_rules([rule]))
 
 
 def _perturb_affix_set(rng, base_aggl, base_fus, typology, dominant, inventory):

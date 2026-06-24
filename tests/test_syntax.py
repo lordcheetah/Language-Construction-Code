@@ -386,6 +386,23 @@ def test_compound_sentence_coordinates_whole_clauses():
     assert forms(lin.linearize(compound)) == ["mi", "ta", "wa", "po", "ta"]
 
 
+# --- Stem allomorphy flows through to the surface -----------------------------------
+def test_stem_allomorphy_surfaces_in_a_linearized_sentence():
+    from conlang.morphology.paradigm import StemAlternation
+    from conlang.soundchange.ruleset import RuleSet
+
+    system = _system()  # noun marks number (PL=-s) and case
+    system.paradigms["noun"].stem_alternation = StemAlternation(
+        RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    )
+    lin = Linearizer(_params(), system)
+    cat = lex("k a t", "noun", "cat")
+    # citation (singular subject, unmarked) keeps the root /kat/
+    assert forms(lin.linearize(Clause(NounPhrase(cat), SEE)))[0] == "kat"
+    # plural is overtly inflected -> bound stem /kad/ + PL /-s/ = /kads/
+    assert forms(lin.linearize(Clause(NounPhrase(cat, number="pl"), SEE)))[0] == "kads"
+
+
 # --- Graceful when the language marks little ----------------------------------------
 def test_caseless_language_relies_on_word_order():
     bare = MorphologySystem(Typology.ISOLATING, {})  # no paradigms at all

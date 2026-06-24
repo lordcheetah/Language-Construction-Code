@@ -65,13 +65,17 @@ and long-distance (non-adjacent) metathesis.
 ### Deferred (Stage 3 "advanced" backlog)
 
 Morphology handles inflection (agglutinative + fusional), basic class-changing
-derivation, optional sandhi, and — added since the first pass — **inflection classes**
-(declensions/conjugations: several affix sets per word class, the extras sharing a
-backbone with the base via partial syncretism; each word is assigned a class). Still to
-add: stem allomorphy, true analytic-particle isolating morphology (free grammatical words
-rather than affixes), extra number values (dual/paucal) and clusivity, zero-derivation
-(conversion), derivation stacking, and tying inflection class to gender / stem shape
-(class assignment is currently random rather than phonologically conditioned).
+derivation, optional sandhi, **inflection classes** (declensions/conjugations: several
+affix sets per word class, the extras sharing a backbone with the base via partial
+syncretism; each word is assigned a class), and — added since the first pass — **stem
+allomorphy** (a bound/oblique stem distinct from the citation root, formed by a final-edge
+mutation — final-stop voicing, vowel raising/umlaut — and used whenever the word is overtly
+inflected, optionally restricted to one triggering category). Still to add: alternation
+conditioned by the following affix (e.g. only before vowel-initial endings), class-bound
+stems, true analytic-particle isolating morphology, extra number values (dual/paucal) and
+clusivity, zero-derivation (conversion), derivation stacking, and tying inflection class to
+gender / stem shape (class assignment is currently random rather than phonologically
+conditioned).
 
 ### Deferred (Stage 4 "advanced" backlog)
 

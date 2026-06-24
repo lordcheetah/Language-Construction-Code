@@ -45,7 +45,8 @@ from conlang.writing.system import WritingSystem
 # v6: interrogative pronouns (who/what) were added to the lexicon.
 # v7: coordinator particles (and/or) were added to the lexicon.
 # v8: a privative derivation can derive antonyms (bad/small/cold) from their base words.
-GENERATOR_VERSION = 8
+# v9: paradigms may roll stem allomorphy (a bound stem), changing morphology RNG.
+GENERATOR_VERSION = 9
 
 
 @dataclass

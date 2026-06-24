@@ -17,7 +17,9 @@ their *marked* cells (the citation form is shared), and class membership is not 
 gender (real declensions often correlate with it).
 
 Optionally a Stage 2 :class:`~conlang.soundchange.ruleset.RuleSet` is applied after
-affixation as **sandhi**, smoothing the morpheme boundaries.
+affixation as **sandhi**, smoothing the morpheme boundaries. A :class:`StemAlternation`
+adds the other kind of stem change — **allomorphy**: a bound/oblique stem, distinct from the
+citation root, that an affix attaches to (final-stop voicing, umlaut, …).
 
 :class:`DerivationRule` covers the other half of morphology: forming a new stem (often of
 a different word class) by adding a derivational affix.
@@ -50,6 +52,42 @@ DEFAULT_CLASS = "1"
 
 
 @dataclass
+class StemAlternation:
+    """Stem allomorphy: the stem an affix attaches to differs from the citation root.
+
+    Many languages have a *bound* (oblique) stem distinct from the free/citation form — the
+    stem mutates at its edge once anything is suffixed (final-stop voicing, vowel raising/
+    umlaut, …). ``change`` (a Stage-2 ``RuleSet``-like rewriter) maps the root to that bound
+    stem; it fires only when the word is overtly inflected — i.e. some marked category takes
+    a non-base value — so the citation form (all base values) is left untouched.
+
+    ``trigger_category`` narrows when the bound stem appears: ``None`` means *any* overt
+    inflection (a true two-stem / oblique-stem system), while a category name restricts it to
+    that category's non-base values (e.g. number-triggered umlaut plurals, foot → feet).
+
+    Simplification: the alternation is inflection-*class*-independent — one stem rule applies
+    across all declensions/conjugations. Real two-stem systems are often class-bound, and
+    alternation conditioned by the following affix's phonology is not modelled here.
+    """
+
+    change: SandhiLike            # root -> bound stem
+    trigger_category: str | None = None
+
+    def stem(
+        self, root: Sequence[Segment], full: FeatureBundle, marked: tuple
+    ) -> list[Segment]:
+        if self._applies(full, marked):
+            return list(self.change.apply(list(root)))
+        return list(root)
+
+    def _applies(self, full: FeatureBundle, marked: tuple) -> bool:
+        cats = marked if self.trigger_category is None else [
+            c for c in marked if c.name == self.trigger_category
+        ]
+        return any(full.get(c.name) not in (None, c.base) for c in cats)
+
+
+@dataclass
 class InflectionClass:
     """One declension/conjugation: an affix set realizing the marked categories."""
 
@@ -70,6 +108,7 @@ class Paradigm:
     extra_classes: dict[str, InflectionClass] = field(default_factory=dict)
     romanizer: Romanizer = field(default_factory=Romanizer)
     sandhi: SandhiLike | None = None  # an optional RuleSet applied after affixation
+    stem_alternation: StemAlternation | None = None  # optional bound-stem allomorphy
 
     def class_ids(self) -> list[str]:
         return [DEFAULT_CLASS, *sorted(self.extra_classes)]
@@ -92,12 +131,18 @@ class Paradigm:
         Missing marked categories default to their base value.
         """
         full = self._complete(bundle)
+        stem = self._stem(root, full)  # stem allomorphy: the bound stem may differ from root
         agglutinative, fusional = self._affixes(inflection_class)
         if self.typology is Typology.FUSIONAL:
-            form = self._inflect_fusional(root, full, fusional)
+            form = self._inflect_fusional(stem, full, fusional)
         else:  # agglutinative and isolating both stack affixes (isolating just has few)
-            form = self._inflect_agglutinative(root, full, agglutinative)
+            form = self._inflect_agglutinative(stem, full, agglutinative)
         return self._apply_sandhi(form)
+
+    def _stem(self, root: Sequence[Segment], full: FeatureBundle) -> list[Segment]:
+        if self.stem_alternation is None:
+            return list(root)
+        return self.stem_alternation.stem(root, full, self.marked)
 
     def _inflect_agglutinative(
         self, root: Sequence[Segment], full: FeatureBundle, affixes: dict
