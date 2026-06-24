@@ -11,6 +11,7 @@ multi-codepoint IPA such as ``t͡ʃ``) or written compactly for single-character
     h > 0 / V_V                               # 0 (also ∅) deletes
     0 > ə / C_C                               # 0 on the left inserts (epenthesis)
     [plosive] > 0 / _(C)#                     # (X) is an optional environment element
+    a > e / _C*i                              # X* / X+ = zero-or-more / one-or-more (a wildcard)
     [nasal] > [αplace] / _[αplace plosive]    # place assimilation (α-feature agreement)
 
 Multi-segment rules act on a *window* of adjacent segments and build their output from
@@ -67,7 +68,11 @@ _BARE_TO_DELTA = {
 @dataclass(frozen=True)
 class _Slot:
     matcher: Matcher
-    optional: bool = False
+    # How many elements this slot consumes: "one" (exactly one), "optional" (0 or 1, from
+    # ``(X)``), "star" (0 or more, from ``X*``), or "plus" (1 or more, from ``X+``). Capturing
+    # an α-feature inside a repeated slot is undefined (last match wins); if such a slot
+    # matches zero elements the variable is left unbound and the rule leaves the target as-is.
+    quant: str = "one"
 
 
 # --- Replacements -------------------------------------------------------------------
@@ -380,15 +385,38 @@ def _parse_environment(env_part: str, categories) -> tuple[list[_Slot], list[_Sl
     if "_" not in env:
         raise ValueError(f"environment missing '_': {env_part!r}")
     left_str, _, right_str = env.partition("_")
-    left = [_parse_slot(t, categories) for t in _tokenize(left_str, categories)]
-    right = [_parse_slot(t, categories) for t in _tokenize(right_str, categories)]
+    left = [_parse_slot(t, categories) for t in _fold_quantifiers(_tokenize(left_str, categories))]
+    right = [_parse_slot(t, categories) for t in _fold_quantifiers(_tokenize(right_str, categories))]
     return left, right
+
+
+def _fold_quantifiers(tokens: list[str]) -> list[str]:
+    """Attach a bare ``*``/``+`` quantifier onto the preceding token (the tokenizer emits it
+    as its own character), so ``C*`` arrives here as ``["C", "*"]`` and leaves as ``["C*"]``."""
+    out: list[str] = []
+    for t in tokens:
+        if t in ("*", "+") and out and out[-1] not in ("*", "+"):
+            out[-1] = out[-1] + t
+        else:
+            out.append(t)
+    return out
 
 
 def _parse_slot(token: str, categories) -> _Slot:
     if token.startswith("(") and token.endswith(")"):
-        return _Slot(_parse_token(token[1:-1].strip(), categories), optional=True)
-    return _Slot(_parse_token(token, categories), optional=False)
+        return _Slot(_parse_token(token[1:-1].strip(), categories), quant="optional")
+    if token and token[-1] in "*+":
+        mark = token[-1]
+        base = token[:-1]
+        # The quantifier must follow exactly one class/segment — not nothing (`*i`), another
+        # quantifier (`C**`), a group (`(C)*`), or a boundary (`#*`, which is meaningless).
+        if not base or base[-1] in "*+" or base.startswith("(") or base == "#":
+            raise ValueError(
+                f"a {mark!r} quantifier must follow a single class or segment, got {token!r}"
+            )
+        quant = "star" if mark == "*" else "plus"
+        return _Slot(_parse_token(base, categories), quant=quant)
+    return _Slot(_parse_token(token, categories), quant="one")
 
 
 def _tokenize(side: str, categories: dict) -> list[str]:
@@ -449,9 +477,10 @@ def _bindings(matcher, element) -> dict:
 def _match_side(elements: list, slots: tuple) -> dict | None:
     """Match *slots* against a prefix of *elements*; return bindings or None.
 
-    Required slots consume one element; optional slots consume zero or one (backtracking).
-    Elements beyond the matched slots are ignored. Returns the bindings captured by any
-    feature-class slots along the successful path.
+    A required slot consumes one element; ``(X)`` consumes zero or one; ``X*``/``X+`` consume
+    a run of zero-or-more / one-or-more (greedily, with backtracking). Elements beyond the
+    matched slots are ignored. Returns the bindings captured by any feature-class slots along
+    the successful path (for a repeated slot, the last consumed element's bindings win).
     """
     return _seq(elements, slots, 0, 0)
 
@@ -460,11 +489,27 @@ def _seq(elements: list, slots: tuple, ei: int, si: int) -> dict | None:
     if si == len(slots):
         return {}
     slot = slots[si]
+    if slot.quant in ("star", "plus"):
+        # Greedily consume the run of matches, then backtrack from longest to shortest.
+        binds = []
+        j = ei
+        while j < len(elements) and slot.matcher.matches(elements[j]):
+            binds.append(_bindings(slot.matcher, elements[j]))
+            j += 1
+        min_k = 1 if slot.quant == "plus" else 0
+        for k in range(len(binds), min_k - 1, -1):
+            rest = _seq(elements, slots, ei + k, si + 1)
+            if rest is not None:
+                merged: dict = {}
+                for b in binds[:k]:
+                    merged.update(b)
+                return {**merged, **rest}
+        return None
     if ei < len(elements) and slot.matcher.matches(elements[ei]):
         rest = _seq(elements, slots, ei + 1, si + 1)
         if rest is not None:
             return {**_bindings(slot.matcher, elements[ei]), **rest}
-    if slot.optional:
+    if slot.quant == "optional":
         rest = _seq(elements, slots, ei, si + 1)
         if rest is not None:
             return rest

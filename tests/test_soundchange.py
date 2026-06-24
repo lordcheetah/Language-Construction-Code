@@ -215,6 +215,68 @@ def test_optional_on_the_left_context():
     assert ipa(rule.apply(segs("i t a"))) == "ite"  # optional C present: i(t)_a
 
 
+# --- Unbounded wildcards (Kleene * / +) ---------------------------------------------
+def test_star_matches_zero_or_more_in_the_right_context():
+    rule = SoundChange.parse("a > e / _C*i", RuleSet().categories)
+    assert ipa(rule.apply(segs("a i"))) == "ei"        # zero consonants
+    assert ipa(rule.apply(segs("a t i"))) == "eti"     # one
+    assert ipa(rule.apply(segs("a s t i"))) == "esti"  # several
+    assert ipa(rule.apply(segs("a t a"))) == "ata"     # no following i -> no change
+
+
+def test_plus_requires_at_least_one():
+    rule = SoundChange.parse("a > e / _C+i", RuleSet().categories)
+    assert ipa(rule.apply(segs("a i"))) == "ai"        # zero consonants -> NOT matched
+    assert ipa(rule.apply(segs("a t i"))) == "eti"     # one consonant -> matched
+    assert ipa(rule.apply(segs("a s t i"))) == "esti"  # several
+
+
+def test_star_on_the_left_context():
+    rule = SoundChange.parse("a > e / iC*_", RuleSet().categories)
+    assert ipa(rule.apply(segs("i a"))) == "ie"        # i then zero C then _
+    assert ipa(rule.apply(segs("i s t a"))) == "iste"  # i then several C then _
+    assert ipa(rule.apply(segs("u t a"))) == "uta"     # no preceding i -> no change
+
+
+def test_star_composes_with_a_boundary():
+    # delete an /a/ separated from the word edge by any number of consonants
+    rule = SoundChange.parse("a > 0 / _C*#", RuleSet().categories)
+    assert ipa(rule.apply(segs("t a"))) == "t"        # a then zero C then #
+    assert ipa(rule.apply(segs("t a k"))) == "tk"     # a then one C then #
+    # in 'tata' the final a deletes (a#); the first a is followed by a vowel, so it stays
+    assert ipa(rule.apply(segs("t a t a"))) == "tat"
+
+
+def test_star_over_a_feature_class():
+    rule = SoundChange.parse("a > e / _[plosive]*i", RuleSet().categories)
+    assert ipa(rule.apply(segs("a t k i"))) == "etki"  # several plosives then i
+    assert ipa(rule.apply(segs("a i"))) == "ei"        # zero plosives
+    assert ipa(rule.apply(segs("a s i"))) == "asi"     # /s/ isn't a plosive -> no match
+
+
+def test_star_composes_with_feature_agreement():
+    # a nasal assimilates to a following plosive's place across any intervening consonants
+    rule = SoundChange.parse("[nasal] > [αplace] / _C*[αplace plosive]", RuleSet().categories)
+    assert ipa(rule.apply(segs("a n k a"))) == "aŋka"     # n -> ŋ before velar k (zero C)
+    assert ipa(rule.apply(segs("a n s k a"))) == "aŋska"  # ... across an intervening /s/
+    assert ipa(rule.apply(segs("a n t a"))) == "anta"     # already alveolar -> unchanged
+
+
+def test_star_fires_at_every_matching_site_in_one_pass():
+    rule = SoundChange.parse("a > e / _C*i", RuleSet().categories)
+    # two independent 'a_i' sites both change; the medial 'a' in 'atati' is blocked by the
+    # intervening vowel (no all-consonant path to an i), so it stays.
+    assert ipa(rule.apply(segs("a t i a t i"))) == "etieti"
+    assert ipa(rule.apply(segs("a t a t i"))) == "ateti"
+
+
+def test_malformed_quantifiers_are_rejected():
+    cats = RuleSet().categories
+    for bad in ("a > e / _*i", "a > e / _C**i", "a > e / _#*i", "a > e / _(C)*i"):
+        with pytest.raises(ValueError):
+            SoundChange.parse(bad, cats)
+
+
 # --- Multi-segment (window) rules: metathesis, gemination, splits -------------------
 def test_metathesis_swaps_two_segments():
     rule = SoundChange.parse("[plosive] [liquid] > 2 1", RuleSet().categories)
