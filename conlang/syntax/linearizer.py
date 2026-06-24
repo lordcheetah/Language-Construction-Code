@@ -31,6 +31,7 @@ from conlang.morphology.features import FeatureBundle
 from conlang.morphology.generator import MorphologySystem
 from conlang.syntax.parameters import (
     SyntaxParameters, Side, Adposition, Alignment, Negation, PolarQuestion,
+    DitransitiveAlignment,
 )
 from conlang.syntax.structure import (
     Clause, NounPhrase, AdpositionalPhrase, RelativeClause, Coordination, Lexeme, Role,
@@ -116,21 +117,30 @@ class Linearizer:
         return words
 
     def _core_tokens(self, clause: Clause, omit: Role | None = None) -> list[GlossedWord]:
-        """The ordered S/V/O (+ obliques) tokens of a clause, optionally omitting one role
-        (used to leave a gap when the clause is relativized)."""
+        """The ordered S/V/O (+ recipient, obliques) tokens of a clause, optionally omitting
+        one role (used to leave a gap when the clause is relativized)."""
+        if clause.indirect_object is not None and clause.object is None:
+            raise ValueError("an indirect object (recipient) requires a direct object")
         transitive = clause.is_transitive
         constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
         if not clause.is_imperative and omit is not Role.SUBJECT:
             constituents["S"] = self._argument(
                 clause.subject, self._core_case(Role.SUBJECT, transitive)
             )
-        if transitive and omit is not Role.OBJECT:
-            constituents["O"] = self._argument(
-                clause.object, self._core_case(Role.OBJECT, transitive)
-            )
+        if transitive:
+            recipient_case, theme_case = self._object_cases(clause, transitive)
+            if omit is not Role.OBJECT:  # gapping the theme leaves the recipient in place
+                constituents["O"] = self._argument(clause.object, theme_case)
+            if clause.indirect_object is not None:
+                constituents["IO"] = self._argument(clause.indirect_object, recipient_case)
 
         order = list(self.params.basic_order.sequence)
-        # A content (wh-) question may move the questioned constituent to the front.
+        # The recipient sits immediately before the theme (a common default; morphological
+        # case, not position, distinguishes them). Inserted before wh-fronting so that
+        # questioning the theme moves only the theme, leaving the recipient in situ.
+        if "IO" in constituents:
+            order.insert(order.index("O"), "IO")
+        # A content (wh-) question may move the questioned constituent (S or O) to the front.
         if clause.questioned is not None and self.params.wh_fronting:
             q_slot = "S" if clause.questioned is Role.SUBJECT else "O"
             if q_slot in order:
@@ -146,6 +156,18 @@ class Linearizer:
         for pp in clause.obliques:
             words.extend(self._adpositional_phrase(pp))
         return words
+
+    def _object_cases(self, clause: Clause, transitive: bool) -> tuple[str, str]:
+        """The (recipient, theme) cases. For a monotransitive the theme takes the normal
+        object case and the recipient slot is unused. For a ditransitive the two split by
+        the language's alignment: indirective = dative recipient + object-case theme;
+        secundative = object-case recipient + dative theme."""
+        object_case = self._core_case(Role.OBJECT, transitive)
+        if clause.indirect_object is None:
+            return object_case, object_case
+        if self.params.ditransitive is DitransitiveAlignment.SECUNDATIVE:
+            return object_case, "dat"   # recipient is the primary object; theme set apart
+        return "dat", object_case       # indirective: recipient set apart in the dative
 
     # --- Case / alignment ------------------------------------------------------------
     def _core_case(self, role: Role, transitive: bool) -> str:

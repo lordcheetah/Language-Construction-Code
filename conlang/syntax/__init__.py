@@ -26,6 +26,7 @@ from conlang.syntax.parameters import (
     Alignment,
     Negation,
     PolarQuestion,
+    DitransitiveAlignment,
     derive_correlates,
 )
 from conlang.syntax.structure import Lexeme, NounPhrase, Clause, Coordination, Role
@@ -40,6 +41,7 @@ __all__ = [
     "Alignment",
     "Negation",
     "PolarQuestion",
+    "DitransitiveAlignment",
     "derive_correlates",
     "Lexeme",
     "NounPhrase",

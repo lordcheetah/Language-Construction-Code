@@ -46,7 +46,8 @@ from conlang.writing.system import WritingSystem
 # v7: coordinator particles (and/or) were added to the lexicon.
 # v8: a privative derivation can derive antonyms (bad/small/cold) from their base words.
 # v9: paradigms may roll stem allomorphy (a bound stem), changing morphology RNG.
-GENERATOR_VERSION = 9
+# v10: syntax rolls a ditransitive alignment, shifting the shared RNG before lexicon/writing.
+GENERATOR_VERSION = 10
 
 
 @dataclass
@@ -139,6 +140,7 @@ class Language:
         subject_adjective: str | None = None,
         object_number: str = "sg",
         object_definiteness: str | None = None,
+        recipient: str | None = None,
         tense: str = "pres",
         negated: bool = False,
         mood: str = "declarative",
@@ -157,7 +159,7 @@ class Language:
             subject, verb, obj,
             subject_number=subject_number, subject_definiteness=subject_definiteness,
             subject_adjective=subject_adjective, object_number=object_number,
-            object_definiteness=object_definiteness, tense=tense,
+            object_definiteness=object_definiteness, recipient=recipient, tense=tense,
             negated=negated, mood=mood, question=question,
         )
         return self._linearizer().linearize(clause)
@@ -191,6 +193,7 @@ class Language:
         subject_adjective: str | None = None,
         object_number: str = "sg",
         object_definiteness: str | None = None,
+        recipient: str | None = None,
         tense: str = "pres",
         negated: bool = False,
         mood: str = "declarative",
@@ -200,6 +203,8 @@ class Language:
             raise ValueError("question must be 'subject', 'object', or None")
         if question is not None and mood == "imperative":
             raise ValueError("an imperative clause cannot also be a content question")
+        if recipient is not None and obj is None:
+            raise ValueError("a recipient (indirect object) needs a direct object too")
         subj = NounPhrase(
             self._lexeme(subject, expect_pos="noun"),
             adjective=self._lexeme(subject_adjective, expect_pos="adjective")
@@ -213,9 +218,13 @@ class Language:
                 self._lexeme(obj, expect_pos="noun"),
                 number=object_number, definiteness=object_definiteness,
             )
+        io_np = None
+        if recipient is not None:
+            io_np = NounPhrase(self._lexeme(recipient, expect_pos="noun"))
         questioned = {"subject": Role.SUBJECT, "object": Role.OBJECT}.get(question)
         return Clause(
             subj, self._lexeme(verb, expect_pos="verb"), obj_np,
+            indirect_object=io_np,
             tense=tense, negated=negated, mood=mood, questioned=questioned,
         )
 

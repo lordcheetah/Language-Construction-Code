@@ -54,7 +54,7 @@ _SHOWCASE_VOCAB = ["I", "water", "fire", "sun", "woman", "eye", "tree", "see", "
 
 # Small English gloss banks so generated sentences can be read interlinearly.
 _NOUN_GLOSSES = ["dog", "woman", "stone", "river", "bird", "child", "fire", "tree"]
-_TVERB_GLOSSES = ["see", "eat", "carry", "find", "hear"]
+_TVERB_GLOSSES = ["see", "eat", "carry", "find", "hear", "give"]
 _IVERB_GLOSSES = ["sleep", "run", "arrive"]
 _ADJ_GLOSSES = ["big", "red", "old", "cold"]
 _ADP_GLOSSES = ["near"]
@@ -289,6 +289,13 @@ def cmd_syntax(args) -> int:
             ),
             iverbs["sleep"],
         ),
+        # Ditransitive: "the woman gives a stone to the child" (recipient + theme).
+        Clause(
+            NounPhrase(nouns["woman"], definiteness="def"),
+            tverbs["give"],
+            NounPhrase(nouns["stone"], definiteness="indef"),
+            indirect_object=NounPhrase(nouns["child"], definiteness="def"),
+        ),
     ]
 
     print("\nSample sentences:")
@@ -310,6 +317,8 @@ def _english_gloss(clause) -> str:
     parts.append(clause.verb.gloss)
     if clause.object is not None:
         parts.append(clause.object.gloss)
+    if clause.indirect_object is not None:
+        parts.append(f"to-{clause.indirect_object.gloss}")
     for pp in clause.obliques:
         parts.append(f"{pp.relation} {pp.np.gloss}")
     text = " ".join(parts)

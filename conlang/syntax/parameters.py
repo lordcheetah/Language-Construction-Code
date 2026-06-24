@@ -65,6 +65,20 @@ class Alignment(Enum):
     ERGATIVE_ABSOLUTIVE = "ergative-absolutive"
 
 
+class DitransitiveAlignment(Enum):
+    """How the two objects of a ditransitive (give X to Y) are case-marked.
+
+    - INDIRECTIVE: the theme (X) is the normal direct object; the recipient (Y) is set apart
+      in the dative. The dominant pattern (English "to", German/Latin dative).
+    - SECUNDATIVE: the recipient (Y) is the primary object (takes the direct-object case);
+      the theme (X) is set apart (here, the dative as a secondary/oblique case). Attested in
+      e.g. many Bantu and some Mesoamerican languages.
+    """
+
+    INDIRECTIVE = "indirective (dative recipient)"
+    SECUNDATIVE = "secundative (primary-object recipient)"
+
+
 class Negation(Enum):
     """How a clause is negated."""
 
@@ -92,6 +106,7 @@ class SyntaxParameters:
     negation: Negation = Negation.PARTICLE_BEFORE_VERB
     polar_question: PolarQuestion = PolarQuestion.PARTICLE_FINAL
     wh_fronting: bool = False  # content questions move the wh-word clause-initial
+    ditransitive: DitransitiveAlignment = DitransitiveAlignment.INDIRECTIVE
 
     def describe(self) -> str:
         wh = "fronted" if self.wh_fronting else "in situ"
@@ -103,7 +118,8 @@ class SyntaxParameters:
             f"  relative:    {self.relative.value} the noun\n"
             f"  alignment:   {self.alignment.value}\n"
             f"  negation:    {self.negation.value}\n"
-            f"  questions:   {self.polar_question.value}; wh-words {wh}"
+            f"  questions:   {self.polar_question.value}; wh-words {wh}\n"
+            f"  ditransitive: {self.ditransitive.value}"
         )
 
 
@@ -156,6 +172,11 @@ def derive_correlates(
     # Wh-fronting is more common in VO languages; in-situ dominates OV (and is common overall).
     wh_fronting = rng.random() < (0.55 if basic_order.is_vo else 0.20)
 
+    # Indirective (dative recipient) is the cross-linguistically dominant ditransitive type.
+    ditransitive = lean(
+        0.80, DitransitiveAlignment.INDIRECTIVE, DitransitiveAlignment.SECUNDATIVE
+    )
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -166,4 +187,5 @@ def derive_correlates(
         negation=negation,
         polar_question=polar_question,
         wh_fronting=wh_fronting,
+        ditransitive=ditransitive,
     )

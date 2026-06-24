@@ -88,12 +88,15 @@ with the strategy harmonically tied to word order, and **relative clauses** (a g
 strategy with the head's role omitted; postnominal relatives take a relativizer particle,
 prenominal ones are participial; placement follows the `relative` parameter), and
 **content (wh-) questions** (an argument is an interrogative pronoun; wh-fronting vs
-in-situ, VO-biased; the wh-word keeps its case), and **coordination** (conjoined noun-phrase
+in-situ, VO-biased; the wh-word keeps its case), **coordination** (conjoined noun-phrase
 arguments and compound sentences with a medial "and"/"or" particle; a conjoined subject
 resolves to plural agreement, each conjunct keeps the same core case, and an absent
-coordinator degrades to asyndetic juxtaposition). Still to build: verb-second, pro-drop,
-oblique/adjunct wh and auxiliary inversion, object agreement and differential object
-marking, free-word articles, and ditransitives. Oblique phrases are still placed
+coordinator degrades to asyndetic juxtaposition), and **ditransitives** (a recipient /
+indirect object marked by the language's ditransitive alignment — indirective: dative
+recipient + accusative theme; secundative: the cases swapped — the recipient placed before
+the theme, with object-gapping and wh-fronting affecting only the theme). Still to build:
+verb-second, pro-drop, oblique/adjunct wh and auxiliary inversion, object agreement and
+differential object marking, and free-word articles. Oblique phrases are still placed
 clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)

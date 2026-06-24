@@ -114,6 +114,21 @@ def test_make_compound_rejects_bad_input():
         lang.make_compound(walk)  # a compound needs at least two clauses
 
 
+def test_make_sentence_ditransitive_adds_a_recipient():
+    lang = Language.generate(8)
+    mono = lang.make_sentence("woman", "give", "stone")
+    ditrans = lang.make_sentence("woman", "give", "stone", recipient="child")
+    # the recipient adds exactly one more constituent (the indirect object)
+    assert len(ditrans.words) == len(mono.words) + 1
+    assert any(w.gloss.startswith("child") for w in ditrans.words)
+
+
+def test_make_sentence_recipient_requires_a_direct_object():
+    lang = Language.generate(1)
+    with pytest.raises(ValueError):
+        lang.make_sentence("woman", "give", recipient="child")  # no direct object
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

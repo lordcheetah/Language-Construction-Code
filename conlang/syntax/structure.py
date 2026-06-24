@@ -109,7 +109,8 @@ class AdpositionalPhrase:
 class Clause:
     subject: NounPhrase
     verb: Lexeme
-    object: NounPhrase | None = None
+    object: NounPhrase | None = None        # the direct object / theme
+    indirect_object: NounPhrase | None = None  # the recipient of a ditransitive (give X to Y)
     tense: str = "pres"
     obliques: list[AdpositionalPhrase] = field(default_factory=list)
     negated: bool = False
@@ -123,6 +124,10 @@ class Clause:
     @property
     def is_transitive(self) -> bool:
         return self.object is not None
+
+    @property
+    def is_ditransitive(self) -> bool:
+        return self.object is not None and self.indirect_object is not None
 
     @property
     def is_imperative(self) -> bool:

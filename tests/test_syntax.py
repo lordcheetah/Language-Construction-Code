@@ -20,6 +20,7 @@ from conlang.syntax.parameters import (
     Alignment,
     Negation,
     PolarQuestion,
+    DitransitiveAlignment,
     SyntaxParameters,
     derive_correlates,
 )
@@ -384,6 +385,99 @@ def test_compound_sentence_coordinates_whole_clauses():
     )
     # "woman see AND bird see" — each clause has singular agreement: mi ta wa po ta
     assert forms(lin.linearize(compound)) == ["mi", "ta", "wa", "po", "ta"]
+
+
+# --- Ditransitives ------------------------------------------------------------------
+def _ditrans_system() -> MorphologySystem:
+    system = _system()  # noun marks number (PL=-s) and case (ACC=-n)
+    system.paradigms["noun"].agglutinative_affixes[("case", "dat")] = Affix(
+        (data.consonant("l"),), Position.SUFFIX, FeatureBundle.of(case="dat"), "DAT"
+    )
+    return system
+
+
+CHILD = lex("d u", "noun", "child")
+
+
+def test_indirective_marks_recipient_dative_and_theme_accusative():
+    params = _params(WordOrder.SVO, ditransitive=DitransitiveAlignment.INDIRECTIVE)
+    lin = Linearizer(params, _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # S V [recipient.DAT theme.ACC]: mi ta dul pon
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "dul", "pon"]
+
+
+def test_secundative_swaps_the_object_cases():
+    params = _params(WordOrder.SVO, ditransitive=DitransitiveAlignment.SECUNDATIVE)
+    lin = Linearizer(params, _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # recipient is now the primary (accusative) object, theme the dative: mi ta dun pol
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "dun", "pol"]
+
+
+def test_recipient_precedes_theme_and_sits_in_the_object_region():
+    params = _params(WordOrder.SOV, ditransitive=DitransitiveAlignment.INDIRECTIVE)
+    lin = Linearizer(params, _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # SOV: subject, [recipient.DAT theme.ACC], verb -> mi dul pon ta
+    assert forms(lin.linearize(clause)) == ["mi", "dul", "pon", "ta"]
+
+
+def test_caseless_ditransitive_relies_on_order_without_crashing():
+    bare = MorphologySystem(Typology.ISOLATING, {})  # nothing inflects
+    lin = Linearizer(_params(WordOrder.SVO), bare)
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # no case marking: bare forms, recipient before theme, distinguished only by order
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "du", "po"]
+
+
+def test_ergative_ditransitive_keeps_the_theme_absolutive():
+    params = _params(WordOrder.SVO, alignment=Alignment.ERGATIVE_ABSOLUTIVE,
+                     ditransitive=DitransitiveAlignment.INDIRECTIVE)
+    lin = Linearizer(params, _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # agent woman = ergative (marked -n); theme bird = absolutive (unmarked); recipient dative
+    assert forms(lin.linearize(clause)) == ["min", "ta", "dul", "po"]
+
+
+def test_relativizing_the_theme_keeps_the_recipient():
+    # "the woman gives __ to the child" — gapping the theme must not delete the recipient.
+    lin = Linearizer(_params(WordOrder.SVO), _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    toks = [t.ipa for t in lin._core_tokens(clause, omit=Role.OBJECT)]
+    assert toks == ["mi", "ta", "dul"]   # subject, verb, recipient.DAT — theme gapped, IO kept
+
+
+def test_wh_fronting_the_theme_moves_only_the_theme_not_the_recipient():
+    params = _params(WordOrder.SVO, wh_fronting=True,
+                     ditransitive=DitransitiveAlignment.INDIRECTIVE)
+    lin = Linearizer(params, _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD), questioned=Role.OBJECT)
+    # only the questioned theme fronts; the recipient stays in situ: pon mi ta dul
+    assert forms(lin.linearize(clause)) == ["pon", "mi", "ta", "dul"]
+
+
+def test_coordinated_theme_in_a_ditransitive_marks_each_conjunct():
+    lin = Linearizer(_params(WordOrder.SVO), _ditrans_system(),
+                     particles={"and": lex("w a", "particle", "and")})
+    theme = Coordination([NounPhrase(BIRD), NounPhrase(WOMAN)], "and")
+    clause = Clause(NounPhrase(WOMAN), SEE, theme, indirect_object=NounPhrase(CHILD))
+    # recipient.DAT then both themes accusative joined by "and": mi ta dul pon wa min
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "dul", "pon", "wa", "min"]
+
+
+def test_recipient_without_a_direct_object_is_rejected():
+    lin = Linearizer(_params(), _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, indirect_object=NounPhrase(CHILD))
+    with pytest.raises(ValueError):
+        lin.linearize(clause)
 
 
 # --- Stem allomorphy flows through to the surface -----------------------------------
