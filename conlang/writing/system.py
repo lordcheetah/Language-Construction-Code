@@ -8,8 +8,12 @@ Four script types are modelled, matching the cross-linguistic typology:
   diacritic, and the inherent vowel is left unmarked.
 - ``SYLLABARY`` — every consonant-vowel sequence is one composed glyph.
 
-Rendering produces SVG: :meth:`WritingSystem.word_svg` lays a word out left to right, and
-:meth:`WritingSystem.chart_svg` draws the script's full inventory as a labelled grid.
+Rendering produces SVG: :meth:`WritingSystem.word_svg` lays a word out in the script's
+reading direction (left-to-right, right-to-left, or top-to-bottom — see
+:class:`WritingDirection`), and :meth:`WritingSystem.chart_svg` draws the script's full
+inventory as a labelled grid. The chart and the numeral rendering stay left-to-right
+regardless of direction (a reference grid has no reading direction, and positional numerals
+are conventionally left-to-right even in right-to-left scripts).
 """
 
 from __future__ import annotations
@@ -27,6 +31,14 @@ class WritingSystemType(Enum):
     ABJAD = "abjad"
     ABUGIDA = "abugida"
     SYLLABARY = "syllabary"
+
+
+class WritingDirection(Enum):
+    """The direction running text flows (the reference chart and numerals stay left-to-right)."""
+
+    LTR = "left-to-right"
+    RTL = "right-to-left"
+    TTB = "top-to-bottom"
 
 
 # A neutral vertical carrier used to display a vowel diacritic on its own in a chart.
@@ -50,6 +62,7 @@ class WritingSystem:
     inherent_vowel: str | None = None       # ipa of the abugida's inherent vowel
     digit_glyphs: dict[int, Glyph] = field(default_factory=dict)  # digit value -> glyph
     punctuation: dict[str, Glyph] = field(default_factory=dict)   # "stop"/"pause"/"word" marks
+    direction: WritingDirection = WritingDirection.LTR           # flow of running text
 
     # --- Rendering a word ------------------------------------------------------------
     def render_segments(self, segments: Sequence[Segment]) -> list[tuple[str, Glyph]]:
@@ -94,17 +107,29 @@ class WritingSystem:
         return units
 
     def _row_svg(self, glyphs: Sequence[Glyph], size: int) -> str:
-        """Lay out a row of glyphs left to right, one 100-unit cell each, as an SVG."""
+        """Lay out a line of glyphs (one 100-unit cell each) in the script's direction.
+
+        Left-to-right and right-to-left run horizontally (RTL places the first glyph at the
+        right); top-to-bottom stacks the cells vertically.
+        """
         glyphs = list(glyphs) or [Glyph()]
-        cell = 100
+        cell, n = 100, len(glyphs)
+        vertical = self.direction is WritingDirection.TTB
         groups = []
         for i, glyph in enumerate(glyphs):
+            if vertical:
+                x, y = 0, i * cell
+            elif self.direction is WritingDirection.RTL:
+                x, y = (n - 1 - i) * cell, 0
+            else:
+                x, y = i * cell, 0
             inner = glyph.to_svg_group(self.style, slant_transform(self.style.slant))
-            groups.append(f'<g transform="translate({i * cell} 0)">{inner}</g>')
-        width = len(glyphs) * cell
+            groups.append(f'<g transform="translate({x} {y})">{inner}</g>')
+        vb_w, vb_h = (cell, n * cell) if vertical else (n * cell, cell)
+        px_w, px_h = (size, n * size) if vertical else (n * size, size)
         return (
-            f'<svg xmlns="http://www.w3.org/2000/svg" width="{len(glyphs) * size}" '
-            f'height="{size}" viewBox="0 0 {width} 100">{"".join(groups)}</svg>'
+            f'<svg xmlns="http://www.w3.org/2000/svg" width="{px_w}" '
+            f'height="{px_h}" viewBox="0 0 {vb_w} {vb_h}">{"".join(groups)}</svg>'
         )
 
     def word_svg(self, segments: Sequence[Segment], size: int = 80) -> str:

@@ -125,12 +125,13 @@ loanword strata / register.
 ### Deferred (Stage 6 "advanced" backlog)
 
 The writing system generates featural SVG glyphs for four script types, plus **numeral
-glyphs** (Maya-style bars-and-dots digits in positional notation) and **punctuation** (a
+glyphs** (Maya-style bars-and-dots digits in positional notation), **punctuation** (a
 daṇḍa-like sentence stop, a half-height clause pause, and an interpunct word divider, with
-`sentence_svg` laying out a written sentence). Still to add: ligatures/positional forms,
-explicit cluster stacking (beyond the coda virama), connecting/cursive strokes, and
-right-to-left or vertical layout direction. True logographic/pictographic scripts are a
-separate, larger effort.
+`sentence_svg` laying out a written sentence), and a rolled **layout direction**
+(left-to-right, right-to-left, or top-to-bottom — running text flows accordingly while the
+reference chart and numerals stay left-to-right). Still to add: ligatures/positional forms,
+explicit cluster stacking (beyond the coda virama), and connecting/cursive strokes. True
+logographic/pictographic scripts are a separate, larger effort.
 
 ## How this is built
 

@@ -15,8 +15,8 @@ from conlang.phonology.inventory import Inventory
 from conlang.writing.glyph import Glyph, Style, Line, Circle
 from conlang.writing.featural import consonant_glyph, vowel_glyph, vowel_diacritic
 from conlang.writing.system import (
-    WritingSystem, WritingSystemType, maya_digit, build_digit_glyphs, build_punctuation,
-    _to_base_digits,
+    WritingSystem, WritingSystemType, WritingDirection,
+    maya_digit, build_digit_glyphs, build_punctuation, _to_base_digits,
 )
 from conlang.writing.generator import build_writing_system
 
@@ -234,12 +234,70 @@ def test_generated_system_has_punctuation():
     assert set(ws.punctuation) == {"stop", "pause", "word"}
 
 
+# --- Layout direction ---------------------------------------------------------------
+def _cells(svg):
+    root = ET.fromstring(svg)
+    xs = []
+    for g in root:
+        if g.tag.endswith("g"):
+            t = g.attrib["transform"]  # "translate(X Y)"
+            x, y = t[t.index("(") + 1 : t.index(")")].split()
+            xs.append((float(x), float(y)))
+    return xs, root.attrib["viewBox"]
+
+
+def test_ltr_lays_glyphs_left_to_right():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    ws.direction = WritingDirection.LTR
+    cells, vb = _cells(ws.word_svg(segs("p a t")))
+    assert [x for x, _ in cells] == [0, 100, 200] and vb == "0 0 300 100"
+
+
+def test_rtl_places_the_first_glyph_at_the_right():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    ws.direction = WritingDirection.RTL
+    cells, vb = _cells(ws.word_svg(segs("p a t")))
+    # three units: first ('p') at the far right (x=200), last at x=0
+    assert [x for x, _ in cells] == [200, 100, 0] and vb == "0 0 300 100"
+
+
+def test_vertical_stacks_glyphs_top_to_bottom():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    ws.direction = WritingDirection.TTB
+    cells, vb = _cells(ws.word_svg(segs("p a t")))
+    assert [y for _, y in cells] == [0, 100, 200]  # stacked downward
+    assert all(x == 0 for x, _ in cells) and vb == "0 0 100 300"  # tall viewBox
+
+
+def test_all_directions_produce_well_formed_svg():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    for d in WritingDirection:
+        ws.direction = d
+        assert is_well_formed_svg(ws.word_svg(segs("p a t i")))
+        assert is_well_formed_svg(ws.sentence_svg([segs("p a"), segs("t i")]))
+
+
+def test_generator_can_roll_a_non_ltr_direction():
+    seen = {build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(s)).direction
+            for s in range(40)}
+    assert WritingDirection.LTR in seen and len(seen) > 1  # not everything is LTR
+
+
+def test_chart_and_numbers_stay_ltr_regardless_of_direction():
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    ltr_chart, ltr_number = ws.chart_svg(), ws.number_svg(42, base=10)
+    for d in (WritingDirection.RTL, WritingDirection.TTB):
+        ws.direction = d
+        assert ws.chart_svg() == ltr_chart        # the reference grid is unaffected
+        assert ws.number_svg(42, base=10) == ltr_number  # numerals stay left-to-right
+
+
 # --- Generator ----------------------------------------------------------------------
 def test_build_writing_system_reproducible():
     inv = Inventory.from_ipa("p t k b a i u")
     a = build_writing_system(inv, random.Random(5))
     b = build_writing_system(inv, random.Random(5))
-    assert a.type == b.type and a.style == b.style
+    assert a.type == b.type and a.style == b.style and a.direction == b.direction
 
 
 def test_abugida_inherent_vowel_prefers_open():

@@ -16,7 +16,7 @@ from conlang.phonology.inventory import Inventory
 from conlang.writing.glyph import Style
 from conlang.writing.featural import consonant_glyph, vowel_glyph, vowel_diacritic
 from conlang.writing.system import (
-    WritingSystem, WritingSystemType, build_digit_glyphs, build_punctuation,
+    WritingSystem, WritingSystemType, WritingDirection, build_digit_glyphs, build_punctuation,
 )
 
 # Approximate prevalence of script types among the world's writing systems.
@@ -46,6 +46,12 @@ def build_writing_system(
         voiced_mark=rng.choice(["dot", "bar"]),
     )
 
+    # Most scripts run left-to-right; a sizeable minority right-to-left, a few vertical.
+    direction = rng.choices(
+        [WritingDirection.LTR, WritingDirection.RTL, WritingDirection.TTB],
+        weights=[0.78, 0.15, 0.07], k=1,
+    )[0]
+
     voiced_mark = style.voiced_mark
     consonants = {c.ipa: consonant_glyph(c, voiced_mark=voiced_mark) for c in inventory.consonants}
     vowels = {v.ipa: vowel_glyph(v) for v in inventory.vowels}
@@ -68,4 +74,5 @@ def build_writing_system(
         inherent_vowel=inherent,
         digit_glyphs=build_digit_glyphs(),  # bars-and-dots digits (pure geometry, no rng)
         punctuation=build_punctuation(),    # stop / pause / word marks (pure geometry, no rng)
+        direction=direction,
     )

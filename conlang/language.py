@@ -50,7 +50,8 @@ from conlang.writing.system import WritingSystem
 # v11: syntax rolls a pro-drop parameter (another shared-RNG draw before lexicon/writing).
 # v12: syntax rolls a free-article parameter (another shared-RNG draw before lexicon/writing).
 # v13: the lexicon rolls a kinship system and adds kin terms (changes lexicon RNG/output).
-GENERATOR_VERSION = 13
+# v14: the writing system rolls a layout direction (an rng draw before numerals are built).
+GENERATOR_VERSION = 14
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -310,7 +311,10 @@ class Language:
                 "alignment": self.syntax.alignment.value,
                 "adposition": self.syntax.adposition.value,
             },
-            "writing": {"type": self.writing.type.value},
+            "writing": {
+                "type": self.writing.type.value,
+                "direction": self.writing.direction.value,
+            },
             "numerals": {
                 "base": self.numerals.base,
                 "samples": {

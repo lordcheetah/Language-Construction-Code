@@ -16,7 +16,8 @@ glyph plus a vowel diacritic), and ``SYLLABARY`` (a composed glyph per CV syllab
 
 from conlang.writing.glyph import Glyph, Style, Line, Path, Circle
 from conlang.writing.system import (
-    WritingSystem, WritingSystemType, maya_digit, build_digit_glyphs, build_punctuation,
+    WritingSystem, WritingSystemType, WritingDirection,
+    maya_digit, build_digit_glyphs, build_punctuation,
 )
 from conlang.writing.generator import build_writing_system
 
@@ -28,6 +29,7 @@ __all__ = [
     "Circle",
     "WritingSystem",
     "WritingSystemType",
+    "WritingDirection",
     "maya_digit",
     "build_digit_glyphs",
     "build_punctuation",
