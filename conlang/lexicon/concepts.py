@@ -42,7 +42,11 @@ _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
         ("foot", 0.80), ("leg", 0.70), ("face", 0.70), ("heart", 0.70), ("blood", 0.80),
         ("bone", 0.75), ("skin", 0.70),
     ]),
-    "kinship": ("noun", [("mother", 0.90), ("father", 0.90), ("name", 0.80)]),
+    "kinship": ("noun", [
+        ("mother", 0.90), ("father", 0.90), ("name", 0.80),
+        ("brother", 0.80), ("sister", 0.80), ("son", 0.82), ("daughter", 0.82),
+        ("uncle", 0.55), ("aunt", 0.55),
+    ]),
     "nature": ("noun", [
         ("sun", 0.90), ("moon", 0.85), ("star", 0.80), ("sky", 0.75), ("water", 0.95),
         ("fire", 0.90), ("stone", 0.85), ("earth", 0.80), ("mountain", 0.70),

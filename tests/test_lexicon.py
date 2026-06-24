@@ -106,6 +106,70 @@ def test_colexified_entries_share_their_source_form():
     raise AssertionError("no colexification fired across 40 seeds (unexpected)")
 
 
+# --- Kinship system -----------------------------------------------------------------
+def test_classificatory_kinship_merges_uncle_with_father():
+    # Search for a seed whose rolled kinship system is classificatory (uncle = father).
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        uncle = lex.get("uncle")
+        if uncle.etymology is Etymology.COLEXIFIED and "father" in uncle.note:
+            assert uncle.form == lex.get("father").form  # shares the parental word
+            assert lex.get("aunt").form == lex.get("mother").form  # aunt = mother too
+            return
+    raise AssertionError("no classificatory kinship system in 40 seeds (unexpected)")
+
+
+def test_sex_neutral_siblings_share_one_word():
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        sister = lex.get("sister")
+        if sister.etymology is Etymology.COLEXIFIED and "brother" in sister.note:
+            assert sister.form == lex.get("brother").form
+            return
+    raise AssertionError("no sex-neutral sibling system in 40 seeds (unexpected)")
+
+
+def test_kinship_axes_are_independent():
+    # The two axes roll independently: there exist languages that are classificatory but
+    # still sex-distinguishing, and languages with sex-neutral siblings but descriptive
+    # (distinct) uncle/aunt. A coupling of the two draws would make one of these impossible.
+    classif_and_sexed = sexneutral_and_descriptive = False
+    for seed in range(60):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        uncle_merged = lex.get("uncle").etymology is Etymology.COLEXIFIED
+        sister_merged = lex.get("sister").etymology is Etymology.COLEXIFIED
+        if uncle_merged and not sister_merged:
+            classif_and_sexed = True
+        if sister_merged and not uncle_merged:
+            sexneutral_and_descriptive = True
+    assert classif_and_sexed and sexneutral_and_descriptive
+
+
+def test_son_and_daughter_are_always_distinct_roots():
+    # No descendant-merging axis is modelled, so these stay independent in every language.
+    for seed in range(20):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        assert lex.get("son").etymology is Etymology.ROOT
+        assert lex.get("daughter").etymology is Etymology.ROOT
+        assert lex.get("son").form != lex.get("daughter").form
+
+
+def test_descriptive_kinship_keeps_kin_terms_distinct():
+    # A seed whose kinship system merges nothing: uncle/aunt/sister are independent roots.
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        if all(lex.get(g).etymology is Etymology.ROOT for g in ("uncle", "aunt", "sister")):
+            assert lex.get("uncle").form != lex.get("father").form
+            assert lex.get("sister").form != lex.get("brother").form
+            return
+    raise AssertionError("no fully descriptive kinship system in 40 seeds (unexpected)")
+
+
 # --- Derivation ---------------------------------------------------------------------
 def _system_with_agent_affix() -> MorphologySystem:
     affix = Affix((data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(), "AGENT")
@@ -229,11 +293,15 @@ def test_root_headwords_are_uniquely_spelled():
 
 
 def test_basic_words_are_shorter_on_average():
-    phono, rng = _phonotactics(11)
-    lex = build_lexicon(phono, rng)
-    roots = [e for e in lex.entries.values() if e.etymology is Etymology.ROOT]
-    basic = [len(e.form) for e in roots if e.concept.basicness >= 0.85]
-    rare = [len(e.form) for e in roots if e.concept.basicness <= 0.55]
+    # Zipf's law of abbreviation is a statistical tendency, so aggregate across seeds rather
+    # than betting on any single language.
+    basic, rare = [], []
+    for seed in range(12):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        roots = [e for e in lex.entries.values() if e.etymology is Etymology.ROOT]
+        basic += [len(e.form) for e in roots if e.concept.basicness >= 0.85]
+        rare += [len(e.form) for e in roots if e.concept.basicness <= 0.55]
     assert sum(basic) / len(basic) < sum(rare) / len(rare)
 
 

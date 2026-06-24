@@ -49,7 +49,8 @@ from conlang.writing.system import WritingSystem
 # v10: syntax rolls a ditransitive alignment, shifting the shared RNG before lexicon/writing.
 # v11: syntax rolls a pro-drop parameter (another shared-RNG draw before lexicon/writing).
 # v12: syntax rolls a free-article parameter (another shared-RNG draw before lexicon/writing).
-GENERATOR_VERSION = 12
+# v13: the lexicon rolls a kinship system and adds kin terms (changes lexicon RNG/output).
+GENERATOR_VERSION = 13
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

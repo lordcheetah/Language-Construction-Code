@@ -98,6 +98,9 @@ def build_lexicon(
                 inflection_class=src_entry.inflection_class,  # shares form -> shares class
             )
 
+    # 2b. Kinship system: roll how this language partitions kin terms.
+    _apply_kinship(lex, rng)
+
     # 3. Derivation (falls back to a fresh root if the language lacks the affix).
     for base, prod, relation, from_pos, to_pos in DERIVATIONS:
         concept = BY_GLOSS[prod]
@@ -143,6 +146,45 @@ def build_lexicon(
             )
 
     return lex
+
+
+def _merge_kin(lex: Lexicon, source: str, target: str, note: str) -> None:
+    """Make *target* share *source*'s word (a colexification recording the kin merge)."""
+    src = lex.entries.get(source)
+    tgt = lex.entries.get(target)
+    if src is None or tgt is None:
+        return
+    lex.entries[target] = LexicalEntry(
+        tgt.concept, src.form, src.roman, Etymology.COLEXIFIED,
+        note=note, inflection_class=src.inflection_class,
+    )
+
+
+def _apply_kinship(lex: Lexicon, rng: random.Random) -> None:
+    """Roll a small kinship typology and apply it as kin-term colexifications.
+
+    Two independent, attested axes:
+
+    - **Sibling classification.** Most languages distinguish siblings by sex (brother vs.
+      sister); a sizeable minority use a single sex-neutral 'sibling' term.
+    - **Parent's-sibling merging.** In *classificatory* systems (Hawaiian/Iroquois) a
+      parent's sibling shares the parental term (uncle = father, aunt = mother); *descriptive*
+      systems keep them distinct. Simplification: with only generic uncle/aunt cover terms
+      (no paternal/maternal or cross/parallel distinction), this is a generational-style
+      approximation rather than strict bifurcate-merging (which keeps the cross-sibling apart).
+
+    The two axes roll independently (a language can be classificatory yet sex-distinguishing,
+    etc.). son/daughter are deliberately always distinct — no descendant-merging axis is
+    modelled. Always consumes exactly two rng draws, so the choice is stable for a seed
+    whether or not the kin terms exist.
+    """
+    sex_neutral_siblings = rng.random() < 0.30
+    classificatory = rng.random() < 0.35
+    if sex_neutral_siblings:  # one word for sibling regardless of sex
+        _merge_kin(lex, "brother", "sister", note="= brother (sex-neutral sibling)")
+    if classificatory:  # parent's sibling = parent
+        _merge_kin(lex, "father", "uncle", note="= father (classificatory)")
+        _merge_kin(lex, "mother", "aunt", note="= mother (classificatory)")
 
 
 def _assign_class(rng: random.Random, pos: str, morphology) -> str:
