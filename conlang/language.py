@@ -54,7 +54,8 @@ from conlang.writing.system import WritingSystem
 # v15: morphology may roll a dual number (sg/dual/pl), changing morphology RNG.
 # v16: syntax rolls differential object marking (another shared-RNG draw before lexicon/writing).
 # v17: numerals may roll irregular/suppletive teens, changing numeral RNG/output.
-GENERATOR_VERSION = 17
+# v18: derivations may be zero-marked (conversion), changing morphology RNG.
+GENERATOR_VERSION = 18
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

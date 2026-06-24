@@ -49,6 +49,10 @@ _DERIVATION_TEMPLATES = [
     ("adjective", "adjective", "ANTONYM"),
 ]
 
+# Relations that read naturally as zero-derivation (conversion); others must stay overt so a
+# zero affix can't collapse the meaning contrast (e.g. a zero ANTONYM = "good" == "bad").
+_ZERO_DERIVABLE = {"AGENT", "RESULT", "BECOME"}
+
 
 @dataclass
 class MorphologySystem:
@@ -256,7 +260,13 @@ def _build_derivations(rng, dominant, inventory) -> list[DerivationRule]:
     templates = rng.sample(_DERIVATION_TEMPLATES, k=min(k, len(_DERIVATION_TEMPLATES)))
     rules = []
     for from_class, to_class, gloss in templates:
-        form = _random_affix_form(rng, inventory)
+        # ~15% of *eligible* derivations are zero-marked — conversion, where a word changes
+        # class with no overt affix (English "water" N -> V), so the derived stem equals its
+        # base. Only relations that read naturally as conversion are eligible; a zero ANTONYM
+        # would make 'good' == 'bad', and a zero DIMINUTIVE/HAVING collapses the contrast it
+        # marks. The rng draw is unconditional so per-rule consumption stays uniform.
+        zero = rng.random() < 0.15 and gloss in _ZERO_DERIVABLE
+        form = () if zero else _random_affix_form(rng, inventory)
         affix = Affix(form, dominant, FeatureBundle.of(), gloss=gloss)
         rules.append(DerivationRule(affix, from_class, to_class, gloss))
     return rules

@@ -25,7 +25,7 @@ from conlang.morphology.affix import Affix, Position
 from conlang.morphology.paradigm import (
     Paradigm, DerivationRule, InflectionClass, StemAlternation,
 )
-from conlang.morphology.generator import random_system
+from conlang.morphology.generator import random_system, MorphologySystem
 
 
 def segs(symbols: str):
@@ -340,6 +340,46 @@ def test_derivation_rule_applies_affix():
         gloss="AGENT",
     )
     assert ipa(rule.apply(segs("k a t"))) == "katno"
+
+
+def test_zero_derivation_is_a_conversion():
+    # a zero-marked derivation changes word class with no affix: the form is unchanged
+    rule = DerivationRule(
+        Affix((), Position.SUFFIX, FeatureBundle.of(), "BECOME"),
+        from_class="adjective", to_class="verb", gloss="BECOME",
+    )
+    assert rule.affix.is_zero
+    assert ipa(rule.apply(segs("k a t"))) == "kat"
+
+
+def test_generator_zero_derivations_are_restricted_to_conversion_relations():
+    # zero-derivation is reachable, and only AGENT/RESULT/BECOME ever go zero — never a zero
+    # ANTONYM (good==bad) or DIMINUTIVE/HAVING (which would collapse their contrast).
+    found = False
+    for seed in range(60):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        for r in system.derivations:
+            if r.affix.is_zero:
+                found = True
+                assert r.gloss in {"AGENT", "RESULT", "BECOME"}
+    assert found, "no zero (conversion) derivation in 60 seeds (unexpected)"
+
+
+def test_zero_derivation_feeds_inflection():
+    # a zero AGENT conversion (verb -> noun) whose product then inflects normally
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (NUMBER,))
+    noun.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    rule = DerivationRule(
+        Affix((), Position.SUFFIX, FeatureBundle.of(), "AGENT"),
+        from_class="verb", to_class="noun", gloss="AGENT",
+    )
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {"noun": noun}, [rule])
+    # 'kat' -> agent noun (zero, still 'kat') -> plural 'kats'
+    out = system.derive(rule, segs("k a t"), FeatureBundle.of(number="pl"))
+    assert ipa(out) == "kats"
 
 
 # --- Generator ----------------------------------------------------------------------

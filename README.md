@@ -75,11 +75,13 @@ allomorphy** (a bound/oblique stem distinct from the citation root, formed by a 
 mutation — final-stop voicing, vowel raising/umlaut — and used whenever the word is overtly
 inflected, optionally restricted to one triggering category) and an optional **dual number**
 (a minority of languages roll a three-way sg/dual/pl system, applied consistently across
-nouns, verbs and adjectives and glossed `DU`). Still to add: alternation conditioned by the
-following affix (e.g. only before vowel-initial endings), class-bound stems, true
-analytic-particle isolating morphology, paucal/trial and clusivity, zero-derivation
-(conversion), derivation stacking, and tying inflection class to gender / stem shape (class
-assignment is currently random rather than phonologically conditioned).
+nouns, verbs and adjectives and glossed `DU`), and **zero-derivation** (conversion: ~15% of
+eligible derivations — AGENT/RESULT/BECOME — are zero-marked, so the word changes class with
+no affix and the product is homophonous with its base, English *to water*). Still to add:
+alternation conditioned by the following affix (e.g. only before vowel-initial endings),
+class-bound stems, true analytic-particle isolating morphology, paucal/trial and clusivity,
+derivation stacking, and tying inflection class to gender / stem shape (class assignment is
+currently random rather than phonologically conditioned).
 
 ### Deferred (Stage 4 "advanced" backlog)
 

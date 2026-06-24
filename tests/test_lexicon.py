@@ -189,6 +189,24 @@ def test_derivation_uses_the_base_word_when_affix_exists():
     assert "hunt" in hunter.note
 
 
+def test_zero_derivation_makes_the_product_homophonous_with_its_base():
+    # an AGENT derivation with a zero affix: 'hunter' == 'hunt' (conversion), recorded DERIVED
+    rule = DerivationRule(
+        Affix((), Position.SUFFIX, FeatureBundle.of(), "AGENT"),
+        from_class="verb", to_class="noun", gloss="AGENT",
+    )
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [rule])
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=system)
+    hunter, hunt = lex.get("hunter"), lex.get("hunt")
+    assert hunter.etymology is Etymology.DERIVED
+    assert hunter.ipa == hunt.ipa  # zero affix -> identical form (conversion)
+    assert "hunt" in hunter.note
+    # still two distinct entries: same form, different concept / part of speech
+    assert hunter.concept.gloss != hunt.concept.gloss
+    assert hunter.concept.pos != hunt.concept.pos  # noun vs verb
+
+
 def test_derivation_falls_back_to_root_without_affix():
     phono, rng = _phonotactics(5)
     lex = build_lexicon(phono, rng, morphology=None)  # no derivational affixes
