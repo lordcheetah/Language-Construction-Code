@@ -65,26 +65,43 @@ class StemAlternation:
     inflection (a true two-stem / oblique-stem system), while a category name restricts it to
     that category's non-base values (e.g. number-triggered umlaut plurals, foot → feet).
 
+    ``condition`` makes the alternation **affix-conditioned** — sensitive to the phonology of
+    the suffix that follows the stem: ``"before_vowel"`` fires only before a vowel-initial
+    suffix (the Finnish/Celtic lenition pattern; the stem stays strong before a consonant or
+    word-finally), ``"before_consonant"`` only before a consonant-initial one, ``None`` is
+    unconditioned. The trigger and the condition both have to hold.
+
     Simplification: the alternation is inflection-*class*-independent — one stem rule applies
-    across all declensions/conjugations. Real two-stem systems are often class-bound, and
-    alternation conditioned by the following affix's phonology is not modelled here.
+    across all declensions/conjugations. Real two-stem systems are often class-bound.
     """
 
     change: SandhiLike            # root -> bound stem
     trigger_category: str | None = None
+    condition: str | None = None  # None | "before_vowel" | "before_consonant"
 
     def stem(
-        self, root: Sequence[Segment], full: FeatureBundle, marked: tuple
+        self,
+        root: Sequence[Segment],
+        full: FeatureBundle,
+        marked: tuple,
+        following: "Affix | None" = None,
     ) -> list[Segment]:
-        if self._applies(full, marked):
+        if self._applies(full, marked, following):
             return list(self.change.apply(list(root)))
         return list(root)
 
-    def _applies(self, full: FeatureBundle, marked: tuple) -> bool:
+    def _applies(self, full: FeatureBundle, marked: tuple, following) -> bool:
         cats = marked if self.trigger_category is None else [
             c for c in marked if c.name == self.trigger_category
         ]
-        return any(full.get(c.name) not in (None, c.base) for c in cats)
+        if not any(full.get(c.name) not in (None, c.base) for c in cats):
+            return False
+        if self.condition is None:
+            return True
+        vowel = following is not None and following.form and following.form[0].is_vowel
+        if self.condition == "before_vowel":
+            return bool(vowel)
+        return following is not None and not vowel  # "before_consonant"
 
 
 @dataclass
@@ -131,22 +148,30 @@ class Paradigm:
         Missing marked categories default to their base value.
         """
         full = self._complete(bundle)
-        stem = self._stem(root, full)  # stem allomorphy: the bound stem may differ from root
         agglutinative, fusional = self._affixes(inflection_class)
         if self.typology is Typology.FUSIONAL:
-            form = self._inflect_fusional(stem, full, fusional)
+            affix = fusional.get(full)
+            overt = affix if (affix is not None and not affix.is_zero) else None
+            # Affix conditioning looks at what follows the stem's (right) edge: a suffix.
+            following = overt if (overt and overt.position is Position.SUFFIX) else None
+            stem = self._stem(root, full, following)
+            form = overt.attach(stem) if overt else list(stem)
         else:  # agglutinative and isolating both stack affixes (isolating just has few)
-            form = self._inflect_agglutinative(stem, full, agglutinative)
+            prefixes, suffixes = self._collect_affixes(full, agglutinative)
+            following = suffixes[0] if suffixes else None  # the innermost (stem-adjacent) suffix
+            stem = self._stem(root, full, following)
+            form = self._attach_affixes(stem, prefixes, suffixes)
         return self._apply_sandhi(form)
 
-    def _stem(self, root: Sequence[Segment], full: FeatureBundle) -> list[Segment]:
+    def _stem(
+        self, root: Sequence[Segment], full: FeatureBundle, following: "Affix | None"
+    ) -> list[Segment]:
         if self.stem_alternation is None:
             return list(root)
-        return self.stem_alternation.stem(root, full, self.marked)
+        return self.stem_alternation.stem(root, full, self.marked, following)
 
-    def _inflect_agglutinative(
-        self, root: Sequence[Segment], full: FeatureBundle, affixes: dict
-    ) -> list[Segment]:
+    def _collect_affixes(self, full: FeatureBundle, affixes: dict):
+        """The (prefixes, suffixes) realizing *full*, inner-to-outer (stem-adjacent first)."""
         prefixes: list[Affix] = []
         suffixes: list[Affix] = []
         for cat in self.marked:
@@ -157,21 +182,18 @@ class Paradigm:
             if affix is None or affix.is_zero:
                 continue
             (prefixes if affix.position is Position.PREFIX else suffixes).append(affix)
-        out = list(root)
-        # Inner-to-outer: first marked category sits closest to the root on each side.
+        return prefixes, suffixes
+
+    def _attach_affixes(
+        self, stem: Sequence[Segment], prefixes: list, suffixes: list
+    ) -> list[Segment]:
+        out = list(stem)
+        # Inner-to-outer: the first marked category sits closest to the root on each side.
         for affix in prefixes:
             out = [*affix.form, *out]
         for affix in suffixes:
             out = [*out, *affix.form]
         return out
-
-    def _inflect_fusional(
-        self, root: Sequence[Segment], full: FeatureBundle, affixes: dict
-    ) -> list[Segment]:
-        affix = affixes.get(full)
-        if affix is None or affix.is_zero:
-            return list(root)
-        return affix.attach(root)
 
     def _complete(self, bundle: FeatureBundle) -> FeatureBundle:
         """Return *bundle* restricted to marked categories, filling gaps with base.

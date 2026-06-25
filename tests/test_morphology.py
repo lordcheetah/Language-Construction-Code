@@ -219,6 +219,92 @@ def test_stem_alternation_composes_with_sandhi():
     assert ipa(par.inflect(segs("m a"), FeatureBundle.of(number="pl"))) == "meba"
 
 
+def test_affix_conditioned_alternation_fires_only_before_a_vowel_initial_suffix():
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    alt = StemAlternation(rs, condition="before_vowel")
+    # a vowel-initial plural suffix /-a/ -> the stem lenites (kad + a)
+    v_par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,), stem_alternation=alt)
+    v_par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(v_par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kada"
+    # a consonant-initial plural suffix /-s/ -> the stem stays strong (kat + s)
+    c_par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,), stem_alternation=alt)
+    c_par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(c_par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kats"
+
+
+def test_before_consonant_condition_is_the_mirror_image():
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    alt = StemAlternation(rs, condition="before_consonant")
+    # consonant-initial suffix /-s/ -> the stem lenites (kad + s)
+    c_par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,), stem_alternation=alt)
+    c_par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(c_par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kads"
+    # vowel-initial suffix /-a/ -> the stem stays strong (kat + a)
+    v_par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,), stem_alternation=alt)
+    v_par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(v_par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kata"
+
+
+def test_conditioned_alternation_needs_a_suffix_not_just_a_prefix():
+    # Overtly inflected, but the marker is a PREFIX, so nothing follows the stem's right edge
+    # -> a before_vowel alternation stays strong (no lenition word-finally).
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER,),
+                   stem_alternation=StemAlternation(rs, condition="before_vowel"))
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("i"),), Position.PREFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "ikat"  # strong
+
+
+def test_affix_conditioning_keys_off_the_innermost_suffix():
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    alt = StemAlternation(rs, condition="before_vowel")
+    # inner suffix (number) vowel-initial, outer (gender) consonant-initial -> lenites
+    vc = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER, GENDER), stem_alternation=alt)
+    vc.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("i"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL")
+    vc.agglutinative_affixes[("gender", "fem")] = Affix(
+        (data.consonant("n"),), Position.SUFFIX, FeatureBundle.of(gender="fem"), "FEM")
+    assert ipa(vc.inflect(segs("k a t"), FeatureBundle.of(number="pl", gender="fem"))) == "kadin"
+    # inner suffix consonant-initial, outer vowel-initial -> stays strong (the inner one conditions)
+    cv = Paradigm(NOUN, Typology.AGGLUTINATIVE, (NUMBER, GENDER), stem_alternation=alt)
+    cv.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL")
+    cv.agglutinative_affixes[("gender", "fem")] = Affix(
+        (data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(gender="fem"), "FEM")
+    assert ipa(cv.inflect(segs("k a t"), FeatureBundle.of(number="pl", gender="fem"))) == "katsa"
+
+
+def test_conditioned_alternation_under_fusional_typology():
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = Paradigm(NOUN, Typology.FUSIONAL, (NUMBER,),
+                   stem_alternation=StemAlternation(rs, condition="before_vowel"))
+    par.fusional_affixes[FeatureBundle.of(number="pl")] = Affix(
+        (data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL"
+    )
+    assert ipa(par.inflect(segs("k a t"), FeatureBundle.of(number="pl"))) == "kada"  # lenites
+
+
+def test_generated_stem_alternation_can_be_affix_conditioned():
+    for seed in range(40):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        for par in system.paradigms.values():
+            alt = par.stem_alternation
+            if alt is not None and alt.condition == "before_vowel":
+                return
+    raise AssertionError("no affix-conditioned stem alternation in 40 seeds (unexpected)")
+
+
 def test_overtly_inflected_root_that_does_not_match_is_unchanged():
     # The bound-stem rule targets a final stop; a vowel-final root meets the inflection
     # trigger but not the rule's structural description, so it does NOT alternate (partial,

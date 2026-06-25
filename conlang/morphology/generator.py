@@ -201,7 +201,10 @@ def _build_stem_alternation(rng: random.Random) -> StemAlternation | None:
     from conlang.soundchange.ruleset import RuleSet  # local: keep Stage 2 a soft dependency
 
     rule = rng.choice(_STEM_ALTERNATIONS)
-    return StemAlternation(RuleSet.from_rules([rule]))
+    # Some stem alternations are affix-conditioned — they fire only before a vowel-initial
+    # suffix (lenition/gradation), not on every overt inflection.
+    condition = "before_vowel" if rng.random() < 0.40 else None
+    return StemAlternation(RuleSet.from_rules([rule]), condition=condition)
 
 
 def _perturb_affix_set(rng, base_aggl, base_fus, typology, dominant, inventory):
