@@ -259,6 +259,66 @@ def test_zero_derivation_makes_the_product_homophonous_with_its_base():
     assert hunter.concept.pos != hunt.concept.pos  # noun vs verb
 
 
+def test_derivation_stacking_builds_a_word_from_two_affixes():
+    # petrify <- stony (HAVING) <- stone, so with both affixes petrify carries both suffixes
+    having = DerivationRule(
+        Affix((data.consonant("l"),), Position.SUFFIX, FeatureBundle.of(), "HAVING"),
+        from_class="noun", to_class="adjective", gloss="HAVING")
+    become = DerivationRule(
+        Affix((data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(), "BECOME"),
+        from_class="adjective", to_class="verb", gloss="BECOME")
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [having, become])
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=system)
+    stone, stony, petrify = lex.get("stone"), lex.get("stony"), lex.get("petrify")
+    assert stony.etymology is Etymology.DERIVED and stony.ipa == stone.ipa + "l"   # +HAVING
+    assert petrify.etymology is Etymology.DERIVED and petrify.ipa == stony.ipa + "a"  # +BECOME
+    assert petrify.ipa == stone.ipa + "l" + "a"   # the two derivational affixes are stacked
+    assert "stony" in petrify.note                # the immediate base is the derived word
+    assert "stone" in stony.note                  # ...and the chain is fully traceable to stone
+
+
+def test_stacked_derivation_falls_back_to_a_root_without_the_outer_affix():
+    # HAVING but no BECOME: stony is derived, but petrify can't stack -> a fresh root
+    having = DerivationRule(
+        Affix((data.consonant("l"),), Position.SUFFIX, FeatureBundle.of(), "HAVING"),
+        from_class="noun", to_class="adjective", gloss="HAVING")
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [having])
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=system)
+    assert lex.get("stony").etymology is Etymology.DERIVED
+    assert lex.get("petrify").etymology is Etymology.ROOT  # no BECOME affix -> coined fresh
+
+
+def test_outer_derivation_can_stack_on_a_fallback_base():
+    # BECOME but no HAVING: stony is a fresh root; petrify still derives from it (one affix)
+    become = DerivationRule(
+        Affix((data.vowel("a"),), Position.SUFFIX, FeatureBundle.of(), "BECOME"),
+        from_class="adjective", to_class="verb", gloss="BECOME")
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [become])
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=system)
+    stony, petrify = lex.get("stony"), lex.get("petrify")
+    assert stony.etymology is Etymology.ROOT       # no HAVING -> fresh root
+    assert petrify.etymology is Etymology.DERIVED   # BECOME present -> derived from that root
+    assert petrify.ipa == stony.ipa + "a" and "stony" in petrify.note
+
+
+def test_derivation_stacking_is_reachable_from_a_generated_morphology():
+    from conlang.morphology.generator import random_system
+
+    for seed in range(60):
+        phono, _ = _phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        if {"HAVING", "BECOME"} <= {r.gloss for r in system.derivations}:
+            lex = build_lexicon(phono, random.Random(seed), morphology=system)
+            petrify = lex.get("petrify")
+            if petrify.etymology is Etymology.DERIVED and "stony" in petrify.note:
+                assert lex.get("stony").etymology is Etymology.DERIVED  # the full two-step stack
+                return
+    raise AssertionError("no organically stacked derivation in 60 seeds (unexpected)")
+
+
 def test_derivation_falls_back_to_root_without_affix():
     phono, rng = _phonotactics(5)
     lex = build_lexicon(phono, rng, morphology=None)  # no derivational affixes

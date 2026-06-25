@@ -87,6 +87,9 @@ _DERIVED_CONCEPTS = [
     Concept("hunter", "noun", "people", 0.45),
     Concept("stony", "adjective", "quality", 0.35),
     Concept("puppy", "noun", "animals", 0.35),
+    # A *stacked* derivation: petrify = stony + BECOME = (stone + HAVING) + BECOME, so the
+    # word is built by two derivational steps when the language has both affixes.
+    Concept("petrify", "verb", "action", 0.25),
 ]
 _COMPOUND_CONCEPTS = [
     Concept("waterfall", "noun", "nature", 0.40),
@@ -111,6 +114,17 @@ FIELDS: list[str] = list(_RAW.keys())
 
 # Every concept (including derived/compound products) must live in a known field.
 assert all(c.field in FIELDS for c in CONCEPTS), "a concept references an unknown field"
+
+
+def _check_derivation_order() -> None:
+    """A stacked derivation (whose base is itself a derivation product) must be listed after
+    that base, so the base exists when the single-pass derivation builder reaches it."""
+    seen_at = {prod: i for i, (_b, prod, *_r) in enumerate(DERIVATIONS)}
+    for i, (base, prod, *_rest) in enumerate(DERIVATIONS):
+        if base in seen_at:
+            assert seen_at[base] < i, (
+                f"derivation {prod!r} stacks on {base!r}, which must be listed earlier"
+            )
 
 
 # --- Relational tables --------------------------------------------------------------
@@ -144,7 +158,13 @@ DERIVATIONS: list[tuple[str, str, str, str, str]] = [
     ("good", "bad", "ANTONYM", "adjective", "adjective"),
     ("big", "small", "ANTONYM", "adjective", "adjective"),
     ("hot", "cold", "ANTONYM", "adjective", "adjective"),
+    # Derivation stacking: petrify is derived from *stony* (itself derived from stone), so a
+    # language with both HAVING and BECOME builds it from two derivational affixes. Must come
+    # after stone->stony so its base exists when this is processed.
+    ("stony", "petrify", "BECOME", "adjective", "verb"),
 ]
+
+_check_derivation_order()  # stacked derivations must follow their base's row
 
 # Compounding: (product, (part1, part2)). The product's form is the parts' forms joined.
 COMPOUNDS: list[tuple[str, tuple[str, str]]] = [

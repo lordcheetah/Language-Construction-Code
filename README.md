@@ -83,8 +83,10 @@ no affix and the product is homophonous with its base, English *to water*). Stem
 can also be **affix-conditioned** — a mutation that fires only before a vowel- (or consonant-)
 initial suffix, the Finnish-gradation / Celtic-mutation pattern (it keys off the innermost,
 stem-adjacent suffix and stays strong word-finally). Still to add: class-bound stems, true
-analytic-particle isolating morphology, paucal/trial and clusivity, and derivation stacking.
-A gender-marking language now assigns each noun a **lexical gender** and ties its inflection
+analytic-particle isolating morphology, and paucal/trial and clusivity. **Derivation stacking**
+is supported — a word can be built by two derivational steps (e.g. *stone* → *stony* [HAVING] →
+*petrify* [BECOME], carrying both affixes when the language has them). A gender-marking language
+now assigns each noun a **lexical gender** and ties its inflection
 class to that gender (declensions track gender, Latin-style — a per-language gender→declension
 map dealt round-robin so different languages pair them differently), and adjectives agree
 with their head noun's gender.

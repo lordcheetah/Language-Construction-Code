@@ -59,7 +59,8 @@ from conlang.writing.system import WritingSystem
 # v20: syntax rolls verb-second (another shared-RNG draw before lexicon/writing).
 # v21: the verb may mark object agreement (object_person/number categories), changing morphology RNG.
 # v22: nouns get a lexical gender that drives their inflection class (class<->gender link).
-GENERATOR_VERSION = 22
+# v23: a stacked derivation (petrify <- stony <- stone) was added to the lexicon.
+GENERATOR_VERSION = 23
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
