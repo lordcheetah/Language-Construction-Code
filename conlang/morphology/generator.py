@@ -120,12 +120,15 @@ def random_system(
     # Suffixing is cross-linguistically dominant; pick a per-language bias.
     dominant = Position.SUFFIX if rng.random() < 0.7 else Position.PREFIX
 
-    # A minority of languages add a dual (sg/dual/pl) wherever they mark number — decided once
-    # per language so nouns, verbs and adjectives agree on the same number system.
+    # A minority of languages add extra non-singular number values — a dual ("two") and/or a
+    # paucal ("a few"). Decided once per language so nouns, verbs and adjectives share the same
+    # number system; the values are ordered sg < dual < paucal < pl. (Trial / greater-paucal are
+    # omitted but would slot into the same `extra` list.)
     number_category = CATEGORIES["number"]
-    if rng.random() < 0.20:
+    extra = [v for v, p in (("dual", 0.20), ("paucal", 0.12)) if rng.random() < p]
+    if extra:
         number_category = GrammaticalCategory(
-            "number", ("sg", "dual", "pl"), "sg", number_category.commonness
+            "number", ("sg", *extra, "pl"), "sg", number_category.commonness
         )
 
     paradigms: dict[str, Paradigm] = {}

@@ -433,6 +433,13 @@ class Linearizer:
 
 
 # --- Module helpers -----------------------------------------------------------------
+# Leipzig number-value tags (singular is the unmarked default, left unglossed). The two call
+# sites use different `.get` fallbacks deliberately: the noun tagger gates out singular before
+# the lookup so its fallback is the generic plural ("PL"); the verb tagger renders singular too,
+# so its fallback is "SG".
+_NUMBER_TAG = {"pl": "PL", "dual": "DU", "paucal": "PAUC"}
+
+
 def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: str | None) -> str:
     """Leipzig-style tag suffix, emitting a tag only for categories the language marks.
 
@@ -441,7 +448,7 @@ def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: st
     """
     tags = []
     if "number" in marked and number not in (None, "sg"):
-        tags.append("DU" if number == "dual" else "PL")
+        tags.append(_NUMBER_TAG.get(number, "PL"))
     if "case" in marked and case and case != "nom":
         tags.append(case.upper())
     if "definiteness" in marked and definiteness == "def":
@@ -466,7 +473,7 @@ def _verb_tags(
     if "person" in marked:
         agr += person
     if "number" in marked:
-        agr += {"pl": "PL", "dual": "DU"}.get(number, "SG")
+        agr += _NUMBER_TAG.get(number, "SG")
     obj = ""
     if "object_person" in marked and object_person is not None:
         obj += object_person

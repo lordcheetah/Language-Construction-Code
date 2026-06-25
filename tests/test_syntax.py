@@ -428,6 +428,26 @@ def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
     assert not any("DU" in w.gloss for w in out.words)
 
 
+def test_paucal_number_is_glossed_pauc_through_the_linearizer():
+    num = GrammaticalCategory("number", ("sg", "paucal", "pl"), "sg", 0.70)
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (num,))
+    noun.agglutinative_affixes[("number", "paucal")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(number="paucal"), "PAUC")
+    system = MorphologySystem(Typology.AGGLUTINATIVE,
+                              {"noun": noun, "verb": _system().paradigms["verb"]})
+    out = Linearizer(_params(WordOrder.SVO), system).linearize(
+        Clause(NounPhrase(WOMAN, number="paucal"), SEE))
+    assert "woman.PAUC" in [w.gloss for w in out.words]  # glossed PAUC, not PL/DU
+
+
+def test_requesting_paucal_in_a_non_paucal_language_degrades_to_base():
+    # the controlled system is sg/pl only; a paucal request coerces to the base (sg), not pl
+    lin = Linearizer(_params(WordOrder.SVO), _system())
+    out = lin.linearize(Clause(NounPhrase(WOMAN, number="paucal"), SEE))
+    assert forms(out)[0] == "mi"
+    assert not any("PAUC" in w.gloss for w in out.words)
+
+
 # --- Gender agreement (driven by the noun's lexical gender) --------------------------
 def test_adjective_agrees_with_the_nouns_gender():
     gender = CATEGORIES["gender"]

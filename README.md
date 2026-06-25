@@ -75,9 +75,10 @@ affix sets per word class, the extras sharing a backbone with the base via parti
 syncretism; each word is assigned a class), and — added since the first pass — **stem
 allomorphy** (a bound/oblique stem distinct from the citation root, formed by a final-edge
 mutation — final-stop voicing, vowel raising/umlaut — and used whenever the word is overtly
-inflected, optionally restricted to one triggering category) and an optional **dual number**
-(a minority of languages roll a three-way sg/dual/pl system, applied consistently across
-nouns, verbs and adjectives and glossed `DU`), and **zero-derivation** (conversion: ~15% of
+inflected, optionally restricted to one triggering category) and optional extra **number
+values** (a minority of languages roll a dual and/or a paucal, composing into anything from
+sg/pl up to a four-way sg/dual/paucal/pl system, applied consistently across nouns, verbs and
+adjectives and glossed `DU`/`PAUC`), and **zero-derivation** (conversion: ~15% of
 eligible derivations — AGENT/RESULT/BECOME — are zero-marked, so the word changes class with
 no affix and the product is homophonous with its base, English *to water*). Stem allomorphy
 can also be **affix-conditioned** — a mutation that fires only before a vowel- (or consonant-)

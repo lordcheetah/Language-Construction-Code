@@ -417,6 +417,52 @@ def test_generated_dual_is_consistent_across_word_classes():
     raise AssertionError("no dual number system in 60 seeds (unexpected)")
 
 
+def test_paucal_number_inflects_as_its_own_value():
+    num = GrammaticalCategory("number", ("sg", "paucal", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (num,))
+    par.agglutinative_affixes[("number", "paucal")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(number="paucal"), "PAUC")
+    par.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL")
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="paucal"))) == "katu"
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kats"
+    assert {b.get("number") for b in par.enumerate_bundles()} == {"sg", "paucal", "pl"}
+
+
+def test_four_way_number_inflects_each_value_distinctly():
+    # a composed sg/dual/paucal/pl system: each non-singular value has its own affix
+    num = GrammaticalCategory("number", ("sg", "dual", "paucal", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (num,))
+    affixes = {"dual": ("i", "DU"), "paucal": ("u", "PAUC"), "pl": ("s", "PL")}
+    for value, (sym, gloss) in affixes.items():
+        seg = data.vowel(sym) if sym in "aiueo" else data.consonant(sym)
+        par.agglutinative_affixes[("number", value)] = Affix(
+            (seg,), Position.SUFFIX, FeatureBundle.of(number=value), gloss)
+    root = segs("k a t")
+    forms = {v: ipa(par.inflect(root, FeatureBundle.of(number=v)))
+             for v in ("sg", "dual", "paucal", "pl")}
+    assert forms == {"sg": "kat", "dual": "kati", "paucal": "katu", "pl": "kats"}
+    assert len(set(forms.values())) == 4  # all four number values are distinct
+
+
+def test_generator_can_roll_paucal_ordered_in_the_number_system():
+    # paucal rolls independently of dual; wherever it appears it sits after sg and any dual,
+    # before pl (the values are ordered sg < dual < paucal < pl).
+    for seed in range(120):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        noun = system.paradigms.get("noun")
+        cat = next((c for c in noun.marked if c.name == "number"), None) if noun else None
+        if cat is not None and "paucal" in cat.values:
+            vals = cat.values
+            assert vals[0] == "sg" and vals[-1] == "pl"
+            if "dual" in vals:
+                assert vals.index("dual") < vals.index("paucal")
+            return
+    raise AssertionError("no paucal number system in 120 seeds (unexpected)")
+
+
 # --- Derivation ---------------------------------------------------------------------
 def test_derivation_rule_applies_affix():
     rule = DerivationRule(
