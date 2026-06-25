@@ -19,6 +19,7 @@ positional backreferences (``1`` = the first matched segment, ``2`` = the second
 literals. This covers metathesis, gemination, and cluster splits or deletions::
 
     [stop] [liquid] > 2 1 / _                 # metathesis (swap the two segments)
+    [liquid] .* [liquid] > 3 2 1              # long-distance metathesis (. = any segment)
     [voiceless plosive] > 1 1 / V_V           # gemination (double a segment)
     s k > k                                   # cluster reduction (two segments -> one)
     [plosive] > ʔ 1 / #_                      # split: prefix a glottal stop
@@ -27,8 +28,9 @@ A rule applies **simultaneously** across the word: every site is matched against
 original form, so a change does not feed itself within a single pass (ordering between
 *different* rules is handled by :class:`~conlang.soundchange.ruleset.RuleSet`). Multi-segment
 windows are applied left-to-right and never overlap (so under an even-width window an odd
-trailing segment is left intact). Window targets are *adjacent* only — long-distance
-metathesis is out of scope — and their output is backreferences and literals, not feature
+trailing segment is left intact). A window target may include **one** ``*`` (variable-width)
+slot — a greedy span used for the gap in long-distance metathesis (``.`` matches any single
+segment) — but no more than one. A window's output is backreferences and literals, not feature
 changes (use a single-segment rule for feature transforms or α-feature agreement).
 """
 
@@ -46,6 +48,7 @@ from conlang.soundchange.matcher import (
     LiteralMatcher,
     CategoryMatcher,
     BoundaryMatcher,
+    AnyMatcher,
     FeatureClass,
     apply_delta,
     set_feature,
@@ -145,12 +148,14 @@ class SoundChange:
             return cls(source=text.strip(), target=None, replacement=replacement,
                        left=tuple(left), right=tuple(right), inserts=True)
 
-        target_tokens = _tokenize(target_str, categories)
+        target_tokens = _fold_quantifiers(_tokenize(target_str, categories))
         repl_tokens = [] if repl_str in _DELETE_TOKENS else _tokenize(repl_str, categories)
         # A window rule: more than one target segment, or an output that reorders/multiplies
         # segments (multiple output tokens or a positional backreference).
         if len(target_tokens) > 1 or len(repl_tokens) > 1 or any(_is_backref(t) for t in repl_tokens):
-            target_seq = tuple(_parse_token(t, categories, allow_boundary=False) for t in target_tokens)
+            target_seq = tuple(_parse_target_slot(t, categories) for t in target_tokens)
+            if sum(1 for _m, starred in target_seq if starred) > 1:
+                raise ValueError("a window rule may have at most one '*' (variable-width) slot")
             replacement_seq = _parse_replacement_seq(repl_str, repl_tokens, len(target_seq))
             # Invariant: replacement is None iff sequence; apply() dispatches on .sequence.
             return cls(source=text.strip(), target=None, replacement=None,
@@ -184,20 +189,21 @@ class SoundChange:
         """Apply a multi-segment window rule, left-to-right, non-overlapping.
 
         Windows are matched against the original form; once a window is taken the scan
-        resumes past it, so a rule never reapplies inside its own output within one pass.
+        resumes past it, so a rule never reapplies inside its own output within one pass. A
+        single ``*`` slot may match a variable-width span (for long-distance metathesis), so a
+        window's width is the sum of its matched groups, not the slot count.
         """
         last_real = len(aug) - 2  # aug[1..last_real] are real segments
-        width = len(self.target_seq)
-        taken: dict[int, list[Segment]] = {}
+        taken: dict[int, tuple[list, int]] = {}  # start index -> (groups, width)
         i = 1
-        while i <= last_real - width + 1:
-            window = aug[i:i + width]
-            if all(isinstance(window[k], Segment) and self.target_seq[k].matches(window[k])
-                   for k in range(width)):
+        while i <= last_real:
+            groups = self._match_window(aug, i, last_real)
+            if groups is not None:
+                width = sum(len(g) for g in groups)
                 right = _match_side(aug[i + width:], self.right)
                 left = _match_side(list(reversed(aug[:i])), tuple(reversed(self.left)))
                 if right is not None and left is not None:
-                    taken[i] = window  # type: ignore[assignment]
+                    taken[i] = (groups, width)
                     i += width
                     continue
             i += 1
@@ -206,14 +212,57 @@ class SoundChange:
         i = 1
         while i <= last_real:
             if i in taken:
-                window = taken[i]
+                groups, width = taken[i]
                 for kind, val in self.replacement_seq:
-                    out.append(window[val - 1] if kind == "ref" else val)
+                    if kind == "ref":
+                        out.extend(groups[val - 1])  # a backref copies a slot's whole group/span
+                    else:
+                        out.append(val)
                 i += width
             else:
                 out.append(aug[i])  # type: ignore[arg-type]
                 i += 1
         return out
+
+    def _match_window(self, aug: list[Element], i: int, last_real: int) -> list[list] | None:
+        """Match the target slots starting at *i*; return one segment-group per slot or None.
+
+        A non-starred slot consumes exactly one segment; the (at most one) starred slot
+        consumes a greedy span, backtracking shorter so the slots after it still match. Greedy
+        means the *longest* span wins, so with two candidate pairs the outermost is taken.
+        """
+        slots = self.target_seq
+        star = next((k for k, (_m, s) in enumerate(slots) if s), None)
+        if star is None:
+            width = len(slots)
+            if i + width - 1 > last_real:
+                return None
+            window = aug[i:i + width]
+            if all(isinstance(window[k], Segment) and slots[k][0].matches(window[k])
+                   for k in range(width)):
+                return [[window[k]] for k in range(width)]
+            return None
+        # One variable-width slot: prefix (single segments), the span, then the suffix.
+        p = i
+        for matcher, _ in slots[:star]:
+            if p > last_real or not (isinstance(aug[p], Segment) and matcher.matches(aug[p])):
+                return None
+            p += 1
+        star_matcher = slots[star][0]
+        end = p
+        while end <= last_real and isinstance(aug[end], Segment) and star_matcher.matches(aug[end]):
+            end += 1
+        suffix = slots[star + 1:]
+        for span_end in range(end, p - 1, -1):  # greedy: longest span first, then backtrack
+            q = span_end
+            if all(q + k <= last_real and isinstance(aug[q + k], Segment)
+                   and m.matches(aug[q + k]) for k, (m, _) in enumerate(suffix)):
+                return (
+                    [[aug[i + k]] for k in range(star)]      # prefix singles
+                    + [list(aug[p:span_end])]                # the starred span
+                    + [[aug[span_end + k]] for k in range(len(suffix))]  # suffix singles
+                )
+        return None
 
     def _apply_rewrite(self, aug: list[Element]) -> list[Segment]:
         # Decide every site against the original form (simultaneous application).
@@ -305,6 +354,8 @@ def _parse_token(token: str, categories, *, allow_boundary: bool = True) -> Matc
         if not allow_boundary:
             raise ValueError("'#' boundary is only valid in an environment")
         return BoundaryMatcher()
+    if token == ".":
+        return AnyMatcher()  # any single segment (e.g. the gap in `[liquid] .* [liquid]`)
     if token.startswith("[") and token.endswith("]"):
         return FeatureClass.parse(token[1:-1])
     if token in categories:
@@ -336,6 +387,17 @@ def _parse_replacement(token: str):
     if token in data.BY_IPA:
         return _Literal(data.BY_IPA[token])
     raise ValueError(f"unknown replacement {token!r}")
+
+
+def _parse_target_slot(token: str, categories) -> tuple[Matcher, bool]:
+    """A target-sequence slot: ``(matcher, starred)``. A trailing ``*`` marks a variable-width
+    slot (zero or more matching segments) — used for the gap in long-distance metathesis."""
+    starred = token.endswith("*")
+    if starred:
+        token = token[:-1]
+        if not token or token.endswith(("*", "+")):
+            raise ValueError(f"a '*' must follow a single class or segment, got {token + '*'!r}")
+    return _parse_token(token, categories, allow_boundary=False), starred
 
 
 def _is_backref(token: str) -> bool:

@@ -308,3 +308,11 @@ class BoundaryMatcher:
 
     def matches(self, element: Element) -> bool:
         return element is BOUNDARY
+
+
+@dataclass(frozen=True)
+class AnyMatcher:
+    """Matches any single segment (``.``), but not a word boundary."""
+
+    def matches(self, element: Element) -> bool:
+        return isinstance(element, Segment)

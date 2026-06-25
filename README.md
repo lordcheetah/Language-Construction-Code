@@ -60,10 +60,12 @@ The sound-change engine handles substitution, feature-class transforms, deletion
 assimilation** with α-features (`[nasal] > [αplace] / _[αplace plosive]`), **multi-segment
 (window) rules** with positional backreferences for metathesis (`[stop] [liquid] > 2 1`),
 gemination (`[voiceless plosive] > 1 1 / V_V`), and cluster reduction/prothesis (`s k > k`,
-`[plosive] > ʔ 1 / #_`), and **unbounded wildcards** — Kleene `X*` (zero or more) and `X+`
+`[plosive] > ʔ 1 / #_`), **unbounded wildcards** — Kleene `X*` (zero or more) and `X+`
 (one or more) over a class, e.g. assimilation across any number of consonants
-(`[nasal] > [αplace] / _C*[αplace plosive]`). Still to add when needed: long-distance
-(non-adjacent) metathesis.
+(`[nasal] > [αplace] / _C*[αplace plosive]`), and **long-distance metathesis** — a window
+target may include one variable-width `*` slot (and `.` matches any segment), so two segments
+swap across a span (`[liquid] .* [liquid] > 3 2 1`, the *miraclo*→*milagro* alternation). The
+sound-change engine is now feature-complete.
 
 ### Deferred (Stage 3 "advanced" backlog)
 

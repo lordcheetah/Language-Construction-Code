@@ -285,6 +285,45 @@ def test_metathesis_swaps_two_segments():
     assert ipa(rule.apply(segs("a r t a"))) == "arta"     # rt is not stop+liquid: unchanged
 
 
+def test_long_distance_metathesis_swaps_across_a_span():
+    # two liquids swap across any intervening segments (. = any segment)
+    rule = SoundChange.parse("[liquid] .* [liquid] > 3 2 1", RuleSet().categories)
+    assert ipa(rule.apply(segs("l a r"))) == "ral"           # across one vowel
+    assert ipa(rule.apply(segs("m i l a k r o"))) == "miraklo"  # milagro <-> miraclo
+    assert ipa(rule.apply(segs("l r"))) == "rl"               # empty span -> adjacent swap
+    assert ipa(rule.apply(segs("p a t a"))) == "pata"         # no liquid pair -> unchanged
+
+
+def test_long_distance_metathesis_with_a_class_gap():
+    # the gap can be a natural class: liquids swap only across vowels, not a consonant
+    rule = SoundChange.parse("[liquid] V* [liquid] > 3 2 1", RuleSet().categories)
+    assert ipa(rule.apply(segs("l a a r"))) == "raal"   # across two vowels
+    assert ipa(rule.apply(segs("l t r"))) == "ltr"      # /t/ isn't a vowel -> no span, no swap
+
+
+def test_window_rule_rejects_two_variable_slots():
+    with pytest.raises(ValueError):
+        SoundChange.parse("[liquid] V* C* [liquid] > 4 1", RuleSet().categories)
+
+
+def test_long_distance_metathesis_is_greedy_outermost():
+    rule = SoundChange.parse("[liquid] .* [liquid] > 3 2 1", RuleSet().categories)
+    # 'r a l a r' has two candidate liquid pairs; greedy takes the OUTERMOST (r...r), which
+    # swaps the two identical /r/ -> unchanged. (A shortest-match would give 'l a r a r'.)
+    assert ipa(rule.apply(segs("r a l a r"))) == "ralar"
+
+
+def test_long_distance_metathesis_respects_the_environment():
+    rule = SoundChange.parse("[liquid] .* [liquid] > 3 2 1 / _ a", RuleSet().categories)
+    assert ipa(rule.apply(segs("l a r a"))) == "rala"   # the pair is followed by /a/ -> swap
+    assert ipa(rule.apply(segs("l a r t"))) == "lart"   # followed by /t/ -> no swap
+
+
+def test_any_matcher_in_a_single_segment_rule_with_a_boundary():
+    rule = SoundChange.parse(". > k / #_", RuleSet().categories)
+    assert ipa(rule.apply(segs("a t a"))) == "kta"  # only the word-initial segment -> /k/
+
+
 def test_metathesis_windows_do_not_overlap():
     # 'abab' under ab -> ba becomes 'baba', not a cascade: each window is taken once.
     rule = SoundChange.parse("a b > 2 1", RuleSet().categories)
