@@ -30,6 +30,7 @@ class Lexeme:
     word_class: str
     gloss: str
     inflection_class: str | None = None  # which declension/conjugation this word takes
+    gender: str | None = None            # a noun's lexical gender (for agreement), if any
 
     @property
     def ipa(self) -> str:

@@ -75,16 +75,21 @@ def build_lexicon(
     product_glosses = {prod for _, prod, *_ in DERIVATIONS} | {prod for prod, _ in COMPOUNDS}
     lex = Lexicon()
 
-    def cls(pos: str) -> str:
-        return _assign_class(rng, pos, morphology)
+    # A per-language gender -> declension map, so which gender uses which class varies by
+    # language (rather than masc always landing in the first declension).
+    gender_classes = _gender_class_map(rng, morphology)
+
+    def feat(pos: str) -> tuple[str, str | None]:
+        return _assign_gender_and_class(rng, pos, morphology, gender_classes)
 
     # 1. Primary roots.
     for concept in CONCEPTS:
         if concept.gloss in product_glosses:
             continue
         form, roman = coin(concept.basicness)
+        klass, gender = feat(concept.pos)
         lex.entries[concept.gloss] = LexicalEntry(
-            concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+            concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
         )
 
     # 2. Colexification.
@@ -96,6 +101,7 @@ def build_lexicon(
                 tgt_entry.concept, src_entry.form, src_entry.roman,
                 Etymology.COLEXIFIED, note=f"= {source}",
                 inflection_class=src_entry.inflection_class,  # shares form -> shares class
+                gender=src_entry.gender,                       # ...and gender
             )
 
     # 2b. Kinship system: roll how this language partitions kin terms.
@@ -113,14 +119,16 @@ def build_lexicon(
             # record their forms but do not force them to be unique.
             used_ipa.add("".join(s.ipa for s in form))
             used_roman.add(roman)
+            klass, gender = feat(concept.pos)
             lex.entries[prod] = LexicalEntry(
                 concept, form, roman, Etymology.DERIVED,
-                note=f"from {base} ({relation})", inflection_class=cls(concept.pos),
+                note=f"from {base} ({relation})", inflection_class=klass, gender=gender,
             )
         else:
             form, roman = coin(concept.basicness)
+            klass, gender = feat(concept.pos)
             lex.entries[prod] = LexicalEntry(
-                concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+                concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
             )
 
     # 4. Compounding (falls back to a fresh root if a part is missing).
@@ -135,14 +143,16 @@ def build_lexicon(
             roman = romanizer.romanize([list(form)])
             used_ipa.add("".join(s.ipa for s in form))
             used_roman.add(roman)
+            klass, gender = feat(concept.pos)
             lex.entries[prod] = LexicalEntry(
                 concept, form, roman, Etymology.COMPOUND,
-                note="+".join(ordered), inflection_class=cls(concept.pos),
+                note="+".join(ordered), inflection_class=klass, gender=gender,
             )
         else:
             form, roman = coin(concept.basicness)
+            klass, gender = feat(concept.pos)
             lex.entries[prod] = LexicalEntry(
-                concept, form, roman, Etymology.ROOT, inflection_class=cls(concept.pos)
+                concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
             )
 
     return lex
@@ -156,8 +166,55 @@ def _merge_kin(lex: Lexicon, source: str, target: str, note: str) -> None:
         return
     lex.entries[target] = LexicalEntry(
         tgt.concept, src.form, src.roman, Etymology.COLEXIFIED,
-        note=note, inflection_class=src.inflection_class,
+        note=note, inflection_class=src.inflection_class, gender=src.gender,
     )
+
+
+# Lexical gender values and their rough prevalence (masculine the default/most common).
+_GENDERS = ("masc", "fem", "neut")
+_GENDER_WEIGHTS = (0.45, 0.35, 0.20)
+
+
+def _roll_gender(rng: random.Random, pos: str, morphology) -> str | None:
+    """A noun's lexical gender, if this language marks gender on nouns; else None."""
+    if pos != "noun" or morphology is None:
+        return None
+    noun = morphology.paradigms.get("noun")
+    if noun is None or not any(c.name == "gender" for c in noun.marked):
+        return None
+    return rng.choices(_GENDERS, weights=_GENDER_WEIGHTS, k=1)[0]
+
+
+def _gender_class_map(rng: random.Random, morphology) -> dict[str, str] | None:
+    """A per-language gender -> inflection-class map (declensions track gender), or None when
+    gender isn't marked or there is only one noun class. The genders are shuffled and dealt
+    round-robin onto the classes, so the partition (which genders share a declension) varies
+    by language while still using every class."""
+    if morphology is None:
+        return None
+    noun = morphology.paradigms.get("noun")
+    if noun is None or not any(c.name == "gender" for c in noun.marked):
+        return None
+    classes = morphology.inflection_classes("noun")
+    if len(classes) <= 1:
+        return None
+    genders = list(_GENDERS)
+    rng.shuffle(genders)
+    return {g: classes[i % len(classes)] for i, g in enumerate(genders)}
+
+
+def _assign_gender_and_class(
+    rng: random.Random, pos: str, morphology, gender_classes: dict[str, str] | None
+) -> tuple[str, str | None]:
+    """Assign a word's (inflection class, gender). In a gender-marking language with several
+    declensions the noun's inflection class is *determined by* its gender via the per-language
+    ``gender_classes`` map (declensions track gender, as in Latin or German); otherwise the
+    class is random as before. Masculine is the base gender, so a masc noun takes no overt
+    gender affix."""
+    gender = _roll_gender(rng, pos, morphology)
+    if gender is not None and gender_classes is not None:
+        return gender_classes[gender], gender
+    return _assign_class(rng, pos, morphology), gender
 
 
 def _apply_kinship(lex: Lexicon, rng: random.Random) -> None:

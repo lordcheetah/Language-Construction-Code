@@ -58,7 +58,8 @@ from conlang.writing.system import WritingSystem
 # v19: stem alternations may be affix-conditioned (before a vowel-initial suffix), changing RNG.
 # v20: syntax rolls verb-second (another shared-RNG draw before lexicon/writing).
 # v21: the verb may mark object agreement (object_person/number categories), changing morphology RNG.
-GENERATOR_VERSION = 21
+# v22: nouns get a lexical gender that drives their inflection class (class<->gender link).
+GENERATOR_VERSION = 22
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -143,7 +144,7 @@ class Language:
             raise ValueError(
                 f"{gloss!r} is a {entry.concept.pos}, but a {expect_pos} is required here"
             )
-        return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class)
+        return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class, entry.gender)
 
     def make_sentence(
         self,
@@ -338,6 +339,7 @@ class Language:
                     "etymology": e.etymology.value,
                     "note": e.note,
                     "inflection_class": e.inflection_class,
+                    "gender": e.gender,
                 }
                 for gloss, e in self.lexicon.entries.items()
             },

@@ -12,9 +12,10 @@ A word class may have several **inflection classes** (declensions for nouns, con
 for verbs): each realizes the *same* marked categories with a *different* affix set, and
 every lexeme belongs to one. The paradigm's own affix fields are inflection class ``"1"``
 (the default); additional classes live in ``extra_classes`` keyed ``"2"``, ``"3"``, … and
-:meth:`inflect` selects one per word. Simplifications worth noting: classes differ only in
-their *marked* cells (the citation form is shared), and class membership is not yet tied to
-gender (real declensions often correlate with it).
+:meth:`inflect` selects one per word. A simplification worth noting: classes differ only in
+their *marked* cells (the citation form is shared). In a gender-marking language the lexicon
+ties a noun's class to its gender (declensions track gender, as in Latin); otherwise the
+class is assigned at random.
 
 Optionally a Stage 2 :class:`~conlang.soundchange.ruleset.RuleSet` is applied after
 affixation as **sandhi**, smoothing the morpheme boundaries. A :class:`StemAlternation`

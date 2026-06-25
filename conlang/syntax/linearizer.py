@@ -286,8 +286,9 @@ class Linearizer:
         article = self._article(np.definiteness)
         bundle_def = None if article is not None else np.definiteness
         number = self._number_for(np.head.word_class, np.number)
+        gender = np.head.gender  # the noun's lexical gender (inflects the noun if it marks gender)
         noun_bundle = FeatureBundle.of(
-            **_drop_none(case=case, number=number, definiteness=bundle_def)
+            **_drop_none(case=case, number=number, definiteness=bundle_def, gender=gender)
         )
         marked = self._marked(np.head.word_class)
         gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def)
@@ -295,9 +296,9 @@ class Linearizer:
 
         tokens: list[GlossedWord] = [noun]
         if np.adjective is not None:
-            # Adjectives agree with their head noun in number (and case where marked).
+            # Adjectives agree with their head noun in number, gender, and case where marked.
             adj_number = self._number_for(np.adjective.word_class, np.number)
-            adj_bundle = FeatureBundle.of(number=adj_number, case=case)
+            adj_bundle = FeatureBundle.of(**_drop_none(number=adj_number, case=case, gender=gender))
             adj_marked = self._marked(np.adjective.word_class)
             adj_gloss = np.adjective.gloss + _grammatical_tags(adj_marked, adj_number, case, None)
             adj = self._inflected_word(np.adjective, adj_bundle, adj_gloss)

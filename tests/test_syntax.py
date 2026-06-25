@@ -428,6 +428,32 @@ def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
     assert not any("DU" in w.gloss for w in out.words)
 
 
+# --- Gender agreement (driven by the noun's lexical gender) --------------------------
+def test_adjective_agrees_with_the_nouns_gender():
+    gender = CATEGORIES["gender"]
+
+    def gender_paradigm(wc):
+        p = Paradigm(WORD_CLASSES[wc], Typology.AGGLUTINATIVE, (gender,))
+        p.agglutinative_affixes[("gender", "fem")] = Affix(
+            (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(gender="fem"), "FEM")
+        return p
+
+    system = MorphologySystem(Typology.AGGLUTINATIVE, {
+        "noun": gender_paradigm("noun"), "adjective": gender_paradigm("adjective"),
+        "verb": Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, ()),
+    })
+    lin = Linearizer(_params(WordOrder.SVO), system)
+    fem_cat = Lexeme(tuple(data.BY_IPA[x] for x in "k a t".split()), "noun", "cat", None, "fem")
+    masc_cat = Lexeme(tuple(data.BY_IPA[x] for x in "k a t".split()), "noun", "cat", None, "masc")
+    big = Lexeme(tuple(data.BY_IPA[x] for x in "r a".split()), "adjective", "big")
+    # feminine noun -> the noun and its agreeing adjective both take the -s gender affix
+    fem = forms(lin.linearize(Clause(NounPhrase(fem_cat, adjective=big), SEE)))
+    assert "kats" in fem and "ras" in fem
+    # masculine (the base value) -> no gender affix on either
+    masc = forms(lin.linearize(Clause(NounPhrase(masc_cat, adjective=big), SEE)))
+    assert "kat" in masc and "ra" in masc
+
+
 # --- Object agreement (polypersonal) ------------------------------------------------
 OBJ_PERSON = CATEGORIES["object_person"]
 OBJ_NUMBER = CATEGORIES["object_number"]

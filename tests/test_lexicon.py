@@ -10,10 +10,10 @@ import random
 from conlang.phonology.inventory import Inventory
 from conlang.phonology.phonotactics import Phonotactics
 from conlang.phonology.wordgen import Romanizer
-from conlang.morphology.features import WORD_CLASSES, FeatureBundle, Typology
+from conlang.morphology.features import CATEGORIES, WORD_CLASSES, FeatureBundle, Typology
 from conlang.morphology.affix import Affix, Position
 from conlang.morphology.generator import MorphologySystem
-from conlang.morphology.paradigm import DerivationRule
+from conlang.morphology.paradigm import DerivationRule, Paradigm, InflectionClass
 from conlang.phonology import data
 from conlang.lexicon.concepts import (
     CONCEPTS,
@@ -104,6 +104,58 @@ def test_colexified_entries_share_their_source_form():
         if colex:
             return
     raise AssertionError("no colexification fired across 40 seeds (unexpected)")
+
+
+# --- Lexical gender & the class<->gender link ---------------------------------------
+def _gendered_two_class_noun_system() -> MorphologySystem:
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (CATEGORIES["gender"],))
+    noun.extra_classes["2"] = InflectionClass()  # two declensions
+    return MorphologySystem(Typology.AGGLUTINATIVE, {"noun": noun})
+
+
+def _gender_to_class(lex):
+    mapping: dict[str, set[str]] = {}
+    for e in lex.entries.values():
+        if e.concept.pos == "noun" and e.gender is not None:
+            mapping.setdefault(e.gender, set()).add(e.inflection_class)
+    return mapping
+
+
+def test_inflection_class_is_determined_by_gender():
+    phono, rng = _phonotactics(5)
+    by_gender = _gender_to_class(build_lexicon(phono, rng, morphology=_gendered_two_class_noun_system()))
+    assert by_gender, "nouns should be assigned a gender in a gender-marking language"
+    # same-gender nouns share one declension (the class is gender-determined, not random)
+    assert all(len(classes) == 1 for classes in by_gender.values())
+    # the genders are dealt round-robin onto the two declensions, so both are used
+    assert len({c for classes in by_gender.values() for c in classes}) >= 2
+
+
+def test_gender_to_class_partition_varies_across_languages():
+    # different languages pair genders to declensions differently (not a fixed mapping)
+    partitions = set()
+    for seed in range(20):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng, morphology=_gendered_two_class_noun_system())
+        partitions.add(frozenset((g, next(iter(cs))) for g, cs in _gender_to_class(lex).items()))
+    assert len(partitions) >= 2
+
+
+def test_colexified_noun_inherits_its_source_gender():
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=_gendered_two_class_noun_system())
+    for entry in lex.of_etymology(Etymology.COLEXIFIED):
+        if entry.concept.pos == "noun":
+            source = lex.get(entry.note.lstrip("= ").strip().split()[0])
+            if source is not None and source.concept.pos == "noun":
+                assert entry.gender == source.gender
+
+
+def test_no_gender_without_gender_marking():
+    # a language that doesn't mark gender assigns none, and the class stays random as before
+    phono, rng = _phonotactics(5)
+    lex = build_lexicon(phono, rng, morphology=None)
+    assert all(e.gender is None for e in lex.entries.values())
 
 
 # --- Kinship system -----------------------------------------------------------------

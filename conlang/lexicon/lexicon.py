@@ -30,6 +30,7 @@ class LexicalEntry:
     etymology: Etymology = Etymology.ROOT
     note: str = ""  # e.g. "= tree", "from hunt (AGENT)", "water+fall"
     inflection_class: str = "1"  # which declension/conjugation this word belongs to
+    gender: str | None = None    # a noun's lexical gender, if the language marks gender
 
     @property
     def ipa(self) -> str:
