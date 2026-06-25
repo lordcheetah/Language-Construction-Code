@@ -111,10 +111,12 @@ the demonstrative and the numeral 'one' — at the noun phrase's left edge, supp
 definiteness affix so there is no double-marking; falls back to morphology when absent), and
 **differential object marking** (only a prominent/definite object takes the accusative; an
 indefinite or bare object — and a non-specific wh-object — is left unmarked, a coordinated
-object marked only when every conjunct is definite). Still to build: verb-second,
-oblique/adjunct wh and auxiliary inversion, object agreement, and postnominal/suffixed
-articles. Oblique phrases are still placed clause-finally rather than by a positional
-parameter.
+object marked only when every conjunct is definite), and **verb-second** (the finite verb
+sits second in a main clause, overriding the base order — the subject fronts in a plain
+declarative, a wh-word in a content question, and a polar question is verb-first; relative
+clauses keep the base order since V2 is main-clause only). Still to build: oblique/adjunct
+topicalization and auxiliary inversion, object agreement, and postnominal/suffixed articles.
+Oblique phrases are still placed clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

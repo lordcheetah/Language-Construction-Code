@@ -428,6 +428,86 @@ def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
     assert not any("DU" in w.gloss for w in out.words)
 
 
+# --- Verb-second (V2) ---------------------------------------------------------------
+def test_verb_second_puts_the_verb_second_overriding_the_base_order():
+    # underlying SOV, but a V2 main clause surfaces as subject-verb-object
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "pon"]  # S V O.ACC, verb second
+    # without V2 the same clause is verb-final
+    base = Linearizer(_params(WordOrder.SOV), _system())
+    assert forms(base.linearize(clause)) == ["mi", "pon", "ta"]  # S O.ACC V
+
+
+def test_v2_fronts_a_questioned_object_with_the_verb_still_second():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True, wh_fronting=True), _system())
+    what = lex("s i", "noun", "what")
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(what), questioned=Role.OBJECT)
+    # O V S: the wh-object fronts, the verb is second, the subject follows
+    assert forms(lin.linearize(clause)) == ["sin", "ta", "mi"]
+
+
+def test_v2_polar_question_is_verb_first():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _system(), particles=_PARTICLES)
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), mood="interrogative")
+    out = forms(lin.linearize(clause))
+    # verb-first (V1): the verb precedes the subject (a clause-final Q particle may follow)
+    assert out[0] == "ta" and out.index("ta") < out.index("mi")
+
+
+def test_v2_disables_pro_drop():
+    # a V2 main clause needs an overt first constituent, so the pronoun subject is kept
+    system = _agreeing_system()
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True, pro_drop=True), system)
+    clause = Clause(NounPhrase(I_PRON, person="1"), SEE, NounPhrase(BIRD))
+    assert "ni" in forms(lin.linearize(clause))  # subject not dropped
+
+
+def test_v2_applies_only_to_matrix_clauses():
+    # V2 is a main-clause phenomenon: an embedded (matrix=False) clause keeps the base order.
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD))
+    matrix = [t.ipa for t in lin._core_tokens(clause, matrix=True)]
+    embedded = [t.ipa for t in lin._core_tokens(clause, matrix=False)]
+    assert matrix == ["mi", "ta", "pon"]    # V2: subject, verb (second), object.ACC
+    assert embedded == ["mi", "pon", "ta"]  # embedded: base SOV, verb final
+
+
+def test_v2_questioned_subject_keeps_the_subject_first():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True, wh_fronting=True), _system())
+    who = lex("s u", "noun", "who")
+    clause = Clause(NounPhrase(who), SEE, NounPhrase(BIRD), questioned=Role.SUBJECT)
+    # the wh-subject is already the front; verb second: who, see, bird.ACC
+    assert forms(lin.linearize(clause)) == ["su", "ta", "pon"]
+
+
+def test_v2_ditransitive_is_subject_verb_recipient_theme():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _ditrans_system())
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD))
+    # S V then the rest (recipient.DAT, theme.ACC): mi ta dul pon
+    assert forms(lin.linearize(clause)) == ["mi", "ta", "dul", "pon"]
+
+
+def test_v2_keeps_the_negated_verb_group_in_second_position():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _system(), particles=_PARTICLES)
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), negated=True)
+    out = forms(lin.linearize(clause))
+    assert out[0] == "mi" and out[-1] == "pon"  # subject first, object last
+    assert "na" in out[1:-1] and "ta" in out[1:-1]  # the verb group (NEG + verb) is in between
+
+
+def test_v2_applies_to_each_clause_of_a_compound():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True), _system(),
+                     particles={"and": lex("w a", "particle", "and")})
+    compound = Coordination(
+        [Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD)),
+         Clause(NounPhrase(BIRD), SEE, NounPhrase(WOMAN))], "and"
+    )
+    # each conjunct is independently V2 (S V O): mi ta pon AND po ta min
+    assert forms(lin.linearize(compound)) == ["mi", "ta", "pon", "wa", "po", "ta", "min"]
+
+
 # --- Differential object marking ----------------------------------------------------
 def test_dom_marks_only_definite_objects():
     lin = Linearizer(_params(WordOrder.SVO, differential_object_marking=True), _system())

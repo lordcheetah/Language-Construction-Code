@@ -116,9 +116,12 @@ class Linearizer:
             words.extend(render(item))
         return words
 
-    def _core_tokens(self, clause: Clause, omit: Role | None = None) -> list[GlossedWord]:
+    def _core_tokens(
+        self, clause: Clause, omit: Role | None = None, matrix: bool = True
+    ) -> list[GlossedWord]:
         """The ordered S/V/O (+ recipient, obliques) tokens of a clause, optionally omitting
-        one role (used to leave a gap when the clause is relativized)."""
+        one role (used to leave a gap when the clause is relativized). ``matrix`` is False for
+        an embedded clause, where verb-second does not apply (V2 is a main-clause phenomenon)."""
         if clause.indirect_object is not None and clause.object is None:
             raise ValueError("an indirect object (recipient) requires a direct object")
         transitive = clause.is_transitive
@@ -135,18 +138,21 @@ class Linearizer:
             if clause.indirect_object is not None:
                 constituents["IO"] = self._argument(clause.indirect_object, recipient_case)
 
-        order = list(self.params.basic_order.sequence)
-        # The recipient sits immediately before the theme (a common default; morphological
-        # case, not position, distinguishes them). Inserted before wh-fronting so that
-        # questioning the theme moves only the theme, leaving the recipient in situ.
-        if "IO" in constituents:
-            order.insert(order.index("O"), "IO")
-        # A content (wh-) question may move the questioned constituent (S or O) to the front.
-        if clause.questioned is not None and self.params.wh_fronting:
-            q_slot = "S" if clause.questioned is Role.SUBJECT else "O"
-            if q_slot in order:
-                order.remove(q_slot)
-                order.insert(0, q_slot)
+        if matrix and self.params.verb_second and not clause.is_imperative and "V" in constituents:
+            order = self._verb_second_order(clause, constituents)
+        else:
+            order = list(self.params.basic_order.sequence)
+            # The recipient sits immediately before the theme (a common default; case, not
+            # position, distinguishes them). Inserted before wh-fronting so questioning the
+            # theme moves only the theme, leaving the recipient in situ.
+            if "IO" in constituents:
+                order.insert(order.index("O"), "IO")
+            # A content (wh-) question may move the questioned constituent (S or O) to the front.
+            if clause.questioned is not None and self.params.wh_fronting:
+                q_slot = "S" if clause.questioned is Role.SUBJECT else "O"
+                if q_slot in order:
+                    order.remove(q_slot)
+                    order.insert(0, q_slot)
 
         words: list[GlossedWord] = []
         for slot in order:
@@ -158,6 +164,24 @@ class Linearizer:
             words.extend(self._adpositional_phrase(pp))
         return words
 
+    def _verb_second_order(self, clause: Clause, constituents: dict) -> list[str]:
+        """The constituent order for a verb-second main clause: one fronted constituent, then
+        the finite verb, then the rest (subject, recipient, object). A polar (yes/no) question
+        is verb-first (V1, German "Siehst du …?"); a content question fronts the wh-word; an
+        ordinary declarative fronts the subject (the unmarked topic).
+
+        Simplifications: only the subject or a questioned object can front (no adjunct/oblique
+        or object topicalization, the other common German first constituents), and the
+        post-verbal remainder is a fixed subject-recipient-object order rather than the base
+        order's midfield. Embedded clauses are out of scope (handled by ``matrix=False``)."""
+        present = [s for s in ("S", "IO", "O") if s in constituents]
+        if clause.mood == "interrogative" and clause.questioned is None:
+            return ["V", *present]  # polar question: verb-first
+        front = "O" if (clause.questioned is Role.OBJECT and self.params.wh_fronting) else "S"
+        if front not in present:
+            front = present[0] if present else "S"  # defensive: chosen front must exist
+        return [front, "V", *[s for s in present if s != front]]
+
     def _pro_drops_subject(self, clause: Clause) -> bool:
         """True if a pronominal subject should be left null (pro-drop).
 
@@ -165,9 +189,12 @@ class Linearizer:
         and only when the verb's agreement marks both person and number — so the dropped
         argument is recoverable from the verb (the rich-agreement licensing condition). The
         verb must agree with the *subject*: under ergative alignment a transitive verb agrees
-        with the absolutive object instead, so its subject cannot be recovered and is kept.
+        with the absolutive object instead, so its subject cannot be recovered and is kept. A
+        verb-second clause keeps the subject too — V2 needs an overt first constituent.
         """
-        if not self.params.pro_drop or clause.questioned is Role.SUBJECT:
+        if not self.params.pro_drop or self.params.verb_second:
+            return False
+        if clause.questioned is Role.SUBJECT:
             return False
         if getattr(clause.subject, "person", None) is None:
             return False
@@ -308,7 +335,7 @@ class Linearizer:
         "that"); a prenominal one is participial cross-linguistically (Japanese, Turkish)
         and takes none.
         """
-        inner = self._core_tokens(rc.clause, omit=rc.role)
+        inner = self._core_tokens(rc.clause, omit=rc.role, matrix=False)  # V2 is main-clause only
         if self.params.relative is Side.AFTER:
             rel = self._particle("rel", "REL")
             if rel is not None:

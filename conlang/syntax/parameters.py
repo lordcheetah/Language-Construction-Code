@@ -110,6 +110,7 @@ class SyntaxParameters:
     pro_drop: bool = False  # a pronominal subject may be dropped when agreement recovers it
     articles: bool = False  # definiteness shown by a free article word, not an affix
     differential_object_marking: bool = False  # only a prominent (definite) object is case-marked
+    verb_second: bool = False  # the finite verb sits second in a main clause (V2)
 
     def describe(self) -> str:
         wh = "fronted" if self.wh_fronting else "in situ"
@@ -125,7 +126,8 @@ class SyntaxParameters:
             f"  ditransitive: {self.ditransitive.value}\n"
             f"  pro-drop:    {'yes' if self.pro_drop else 'no'} (null pronominal subjects)\n"
             f"  articles:    {'free word' if self.articles else 'none / affixal'}\n"
-            f"  object case: {'differential (definite only)' if self.differential_object_marking else 'uniform'}"
+            f"  object case: {'differential (definite only)' if self.differential_object_marking else 'uniform'}\n"
+            f"  verb-second: {'yes (V2 main clauses)' if self.verb_second else 'no'}"
         )
 
 
@@ -194,6 +196,9 @@ def derive_correlates(
     # minority — Spanish, Turkish, Hindi, Hebrew, etc.
     differential_object_marking = rng.random() < 0.25
 
+    # Verb-second is rare cross-linguistically (mostly Germanic); keep it uncommon.
+    verb_second = rng.random() < 0.08
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -208,4 +213,5 @@ def derive_correlates(
         pro_drop=pro_drop,
         articles=articles,
         differential_object_marking=differential_object_marking,
+        verb_second=verb_second,
     )
