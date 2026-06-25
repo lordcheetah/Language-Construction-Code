@@ -428,6 +428,17 @@ def test_derivation_rule_applies_affix():
     assert ipa(rule.apply(segs("k a t"))) == "katno"
 
 
+def test_generator_can_roll_object_agreement():
+    # some seed's verb marks object agreement (polypersonal), a minority feature
+    for seed in range(40):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        verb = system.paradigms.get("verb")
+        if verb and any(c.name in ("object_person", "object_number") for c in verb.marked):
+            return
+    raise AssertionError("no object agreement in 40 seeds (unexpected)")
+
+
 def test_zero_derivation_is_a_conversion():
     # a zero-marked derivation changes word class with no affix: the form is unchanged
     rule = DerivationRule(

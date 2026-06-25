@@ -75,6 +75,10 @@ CATEGORIES: dict[str, GrammaticalCategory] = {
     "polarity": GrammaticalCategory(
         "polarity", ("affirmative", "negative"), "affirmative", 0.20
     ),
+    # Polypersonal agreement: the verb also cross-references its object (Basque, Bantu, …).
+    # A minority feature, so low commonness.
+    "object_person": GrammaticalCategory("object_person", ("1", "2", "3"), "3", 0.15),
+    "object_number": GrammaticalCategory("object_number", ("sg", "pl"), "sg", 0.15),
 }
 
 
@@ -95,7 +99,9 @@ class WordClass:
 # Greenbergian: number inner, case outer.
 WORD_CLASSES: dict[str, WordClass] = {
     "noun": WordClass("noun", ("number", "case", "gender", "definiteness")),
-    "verb": WordClass("verb", ("aspect", "tense", "mood", "polarity", "person", "number")),
+    # Object agreement is outermost (least relevant to the stem, Bybee), after subject agreement.
+    "verb": WordClass("verb", ("aspect", "tense", "mood", "polarity", "person", "number",
+                               "object_person", "object_number")),
     "adjective": WordClass("adjective", ("gender", "number", "case")),
 }
 

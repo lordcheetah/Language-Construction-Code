@@ -428,6 +428,65 @@ def test_requesting_dual_in_a_non_dual_language_degrades_to_base():
     assert not any("DU" in w.gloss for w in out.words)
 
 
+# --- Object agreement (polypersonal) ------------------------------------------------
+OBJ_PERSON = CATEGORIES["object_person"]
+OBJ_NUMBER = CATEGORIES["object_number"]
+THEY = lex("d e", "noun", "they")
+
+
+def _polypersonal_system() -> MorphologySystem:
+    # the verb agrees with the subject (person+number) AND the object (object_person+number)
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE,
+                    (PERSON, NUMBER, OBJ_PERSON, OBJ_NUMBER))
+    verb.agglutinative_affixes[("person", "1")] = Affix(
+        (data.vowel("o"),), Position.SUFFIX, FeatureBundle.of(person="1"), "1")
+    verb.agglutinative_affixes[("object_person", "1")] = Affix(
+        (data.consonant("m"),), Position.SUFFIX, FeatureBundle.of(object_person="1"), "O1")
+    verb.agglutinative_affixes[("object_number", "pl")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(object_number="pl"), "OPL")
+    return MorphologySystem(Typology.AGGLUTINATIVE, {"verb": verb, "noun": _system().paradigms["noun"]})
+
+
+def _the_verb(sentence):
+    return next(w for w in sentence.words if w.gloss.startswith("see"))
+
+
+def test_verb_cross_references_subject_and_object():
+    lin = Linearizer(_params(WordOrder.SVO), _polypersonal_system())
+    # "I see them": 1sg subject acting on a 3pl object -> see.1SG>3PL, form ta+o+s
+    v = _the_verb(lin.linearize(Clause(NounPhrase(I_PRON, person="1"), SEE,
+                                       NounPhrase(THEY, number="pl"))))
+    assert v.gloss == "see.1SG>3PL" and v.roman == "taos"
+    # "woman sees me": 3sg subject, 1sg object -> see.3SG>1SG, form ta+m
+    v2 = _the_verb(lin.linearize(Clause(NounPhrase(WOMAN), SEE,
+                                        NounPhrase(I_PRON, person="1"))))
+    assert v2.gloss == "see.3SG>1SG" and v2.roman == "tam"
+
+
+def test_object_agreement_absent_on_an_intransitive_verb():
+    lin = Linearizer(_params(WordOrder.SVO), _polypersonal_system())
+    v = _the_verb(lin.linearize(Clause(NounPhrase(WOMAN), SEE)))  # no object
+    assert ">" not in v.gloss     # nothing to cross-reference in the gloss
+    assert v.roman == "ta"        # ...and no spurious object affix in the form (base = zero)
+
+
+def test_object_agreement_cross_references_a_coordinated_object_as_plural():
+    lin = Linearizer(_params(WordOrder.SVO), _polypersonal_system(),
+                     particles={"and": lex("w a", "particle", "and")})
+    obj = Coordination([NounPhrase(WOMAN), NounPhrase(BIRD)], "and")  # 3rd-person plural
+    v = _the_verb(lin.linearize(Clause(NounPhrase(WOMAN), SEE, obj)))
+    assert v.gloss == "see.3SG>3PL"  # subject 3sg, conjoined object 3pl
+
+
+def test_object_agreement_under_ergative_indexes_object_then_agent():
+    lin = Linearizer(_params(WordOrder.SVO, alignment=Alignment.ERGATIVE_ABSOLUTIVE),
+                     _polypersonal_system())
+    # primary agreement is the absolutive object (3pl); the object-agreement slot is the agent (1sg)
+    v = _the_verb(lin.linearize(Clause(NounPhrase(I_PRON, person="1"), SEE,
+                                       NounPhrase(THEY, number="pl"))))
+    assert v.gloss == "see.3PL>1SG"  # object>agent under ergative (primary>cross-referenced)
+
+
 # --- Verb-second (V2) ---------------------------------------------------------------
 def test_verb_second_puts_the_verb_second_overriding_the_base_order():
     # underlying SOV, but a V2 main clause surfaces as subject-verb-object

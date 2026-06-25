@@ -367,23 +367,28 @@ class Linearizer:
     def _verb(self, clause: Clause) -> GlossedWord:
         # Agreement controller: the absolutive argument under ergative alignment (object of
         # a transitive, else subject), otherwise the subject (nominative).
-        if clause.is_transitive and self.params.alignment is Alignment.ERGATIVE_ABSOLUTIVE:
-            agr = clause.object
-        else:
-            agr = clause.subject
+        ergative = clause.is_transitive and self.params.alignment is Alignment.ERGATIVE_ABSOLUTIVE
+        agr = clause.object if ergative else clause.subject
         # Imperative addresses the listener (2nd person); otherwise the verb agrees with the
         # subject's person — a pronoun carries 1/2/3, a full NP defaults to 3rd person.
         person = "2" if clause.is_imperative else (getattr(agr, "person", None) or "3")
         number = self._number_for(clause.verb.word_class, agr.number)
         mood = "imperative" if clause.is_imperative else "indicative"
         polarity = "negative" if self._verbal_negation(clause) else "affirmative"
-        bundle = FeatureBundle.of(
-            tense=clause.tense, person=person, number=number,
-            mood=mood, polarity=polarity,
-        )
         marked = self._marked(clause.verb.word_class)
+        # Object (polypersonal) agreement: cross-reference the *other* core argument — the
+        # object under nom-acc, the agent under ergative (where the primary slot is the object).
+        obj_person = obj_number = None
+        if clause.is_transitive and {"object_person", "object_number"} & marked:
+            other = clause.subject if ergative else clause.object
+            obj_person = getattr(other, "person", None) or "3"
+            obj_number = "pl" if getattr(other, "number", "sg") != "sg" else "sg"
+        bundle = FeatureBundle.of(
+            tense=clause.tense, person=person, number=number, mood=mood, polarity=polarity,
+            **_drop_none(object_person=obj_person, object_number=obj_number),
+        )
         gloss = clause.verb.gloss + _verb_tags(
-            marked, person, number, clause.tense, mood, polarity
+            marked, person, number, clause.tense, mood, polarity, obj_person, obj_number
         )
         return self._inflected_word(clause.verb, bundle, gloss)
 
@@ -445,13 +450,29 @@ def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: st
     return "." + ".".join(tags) if tags else ""
 
 
-def _verb_tags(marked: set[str], person: str, number: str, tense: str, mood: str, polarity: str) -> str:
-    """Agreement/tense/mood/polarity gloss for the verb, gated on what it actually marks."""
+def _verb_tags(
+    marked: set[str], person: str, number: str, tense: str, mood: str, polarity: str,
+    object_person: str | None = None, object_number: str | None = None,
+) -> str:
+    """Agreement/tense/mood/polarity gloss for the verb, gated on what it actually marks.
+
+    Object (polypersonal) agreement is written after the primary agreement with a ``>``
+    (primary-controller > cross-referenced argument). Under nominative-accusative that reads
+    as agent>patient — ``see.1SG>3PL`` for "I see them"; under ergative the primary slot is the
+    absolutive object, so it reads object>agent.
+    """
     agr = ""
     if "person" in marked:
         agr += person
     if "number" in marked:
         agr += {"pl": "PL", "dual": "DU"}.get(number, "SG")
+    obj = ""
+    if "object_person" in marked and object_person is not None:
+        obj += object_person
+    if "object_number" in marked and object_number is not None:
+        obj += "PL" if object_number == "pl" else "SG"
+    if obj:
+        agr = f"{agr}>{obj}" if agr else f">{obj}"
     tags = [agr] if agr else []
     if "tense" in marked and tense and tense != "pres":
         tags.append(tense.upper())

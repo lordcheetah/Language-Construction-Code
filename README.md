@@ -114,9 +114,12 @@ indefinite or bare object — and a non-specific wh-object — is left unmarked,
 object marked only when every conjunct is definite), and **verb-second** (the finite verb
 sits second in a main clause, overriding the base order — the subject fronts in a plain
 declarative, a wh-word in a content question, and a polar question is verb-first; relative
-clauses keep the base order since V2 is main-clause only). Still to build: oblique/adjunct
-topicalization and auxiliary inversion, object agreement, and postnominal/suffixed articles.
-Oblique phrases are still placed clause-finally rather than by a positional parameter.
+clauses keep the base order since V2 is main-clause only), and **object agreement** (a
+minority of languages are polypersonal — the verb cross-references its object too via
+object_person/object_number, glossed `see.1SG>3PL`; under ergative the primary slot indexes
+the absolutive object and the secondary the agent). Still to build: oblique/adjunct
+topicalization and auxiliary inversion, and postnominal/suffixed articles. Oblique phrases
+are still placed clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

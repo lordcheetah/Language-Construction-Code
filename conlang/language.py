@@ -57,7 +57,8 @@ from conlang.writing.system import WritingSystem
 # v18: derivations may be zero-marked (conversion), changing morphology RNG.
 # v19: stem alternations may be affix-conditioned (before a vowel-initial suffix), changing RNG.
 # v20: syntax rolls verb-second (another shared-RNG draw before lexicon/writing).
-GENERATOR_VERSION = 20
+# v21: the verb may mark object agreement (object_person/number categories), changing morphology RNG.
+GENERATOR_VERSION = 21
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
