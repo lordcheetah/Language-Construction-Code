@@ -16,6 +16,7 @@ import sys
 from conlang.phonology.inventory import Inventory
 from conlang.phonology.phonotactics import Phonotactics
 from conlang.phonology.wordgen import WordGenerator, Romanizer
+from conlang.phonology.ipa_guide import pronunciation_key
 from conlang.soundchange.ruleset import RuleSet
 from conlang.morphology.generator import random_system
 from conlang.morphology.features import FeatureBundle
@@ -92,6 +93,9 @@ def cmd_phonology(args) -> int:
 
     print(inv.summary())
     print(f"  Syllables:  {', '.join(str(t) for t in phono.templates)}")
+    if not getattr(args, "no_key", False):
+        print("\nPronunciation key (how to say each phoneme):")
+        print(pronunciation_key(inv.segments))
     print()
 
     gen = WordGenerator(phono)
@@ -100,6 +104,29 @@ def cmd_phonology(args) -> int:
     width = max((len(w.roman) for w in words), default=0)
     for w in words:
         print(f"  {w.roman:<{width}}  /{w.ipa}/")
+    return 0
+
+
+def cmd_ipa(args) -> int:
+    """Print a plain-English pronunciation key for IPA symbols.
+
+    With ``--inventory``/``--random``/``--seed`` it keys just that language's phonemes (the
+    useful case when reading generated words); with ``--all`` (the default when nothing else
+    is given) it lists every symbol the engine can produce."""
+    if args.all or not (args.inventory or args.random or args.seed is not None):
+        from conlang.phonology import data as _data
+        print("IPA pronunciation guide — every sound the generator can produce:")
+        print("\nConsonants:")
+        print(pronunciation_key(_data.CONSONANTS))
+        print("\nVowels:")
+        print(pronunciation_key(_data.VOWELS))
+        return 0
+    rng = random.Random(args.seed)
+    args.random = args.random or not args.inventory
+    inv, _ = _build_phonology(args, rng)
+    print(inv.summary())
+    print("\nPronunciation key (how to say each phoneme):")
+    print(pronunciation_key(inv.segments))
     return 0
 
 
@@ -583,7 +610,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--count", type=int, default=20, help="number of sample words (default 20)")
     p.add_argument("--seed", type=int, default=None, help="seed for reproducible output")
+    p.add_argument("--no-key", action="store_true",
+                   help="omit the plain-English pronunciation key")
     p.set_defaults(func=cmd_phonology)
+
+    ipa = sub.add_parser(
+        "ipa",
+        help="plain-English pronunciation key for IPA symbols (a whole language's, or all)",
+    )
+    ipa.add_argument("--random", action="store_true", help="key a random language's inventory")
+    ipa.add_argument("--inventory", help='key an explicit IPA inventory, e.g. "p t k a i u"')
+    ipa.add_argument("--all", action="store_true",
+                     help="list every symbol the engine can produce (the default)")
+    ipa.add_argument("--templates", help=argparse.SUPPRESS)  # accepted by _build_phonology
+    ipa.add_argument("--seed", type=int, default=None, help="seed for a reproducible inventory")
+    ipa.set_defaults(func=cmd_ipa)
 
     s = sub.add_parser(
         "soundchange",

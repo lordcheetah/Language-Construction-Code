@@ -187,7 +187,11 @@ python -m conlang generate --seed 42 --out out   # + write the native script as 
 python -m conlang generate --json                # JSON snapshot (a language = its seed)
 
 python -m conlang phonology --random            # roll a random plausible inventory + words
-python -m conlang phonology --random --seed 42  # reproducible
+python -m conlang phonology --random --seed 42  # reproducible (prints a pronunciation key)
+
+# Can't read IPA? Print a plain-English "say it like this" key for each symbol
+python -m conlang ipa --seed 42                 # just this language's phonemes
+python -m conlang ipa --all                     # every sound the engine can produce
 
 # Evolve a generated proto-lexicon into a daughter language
 python -m conlang soundchange --demo --seed 42 --trace

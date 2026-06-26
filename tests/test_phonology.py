@@ -171,3 +171,85 @@ def test_full_pipeline_smoke():
     words = gen.lexicon(10, rng)
     assert len(words) == 10
     assert all(w.roman and w.ipa for w in words)
+
+
+# --- IPA pronunciation guide --------------------------------------------------------
+def test_every_producible_symbol_has_a_pronunciation_hint():
+    # the guide must cover every segment the generator can emit, so a word never contains a
+    # symbol the learner can't look up
+    from conlang.phonology.ipa_guide import PRONUNCIATION
+    missing = [s.ipa for s in data.ALL_SEGMENTS if s.ipa not in PRONUNCIATION]
+    assert not missing, f"no pronunciation hint for: {missing}"
+
+
+def test_describe_accepts_symbol_or_segment():
+    from conlang.phonology.ipa_guide import describe
+    assert "ship" in describe("ʃ")
+    assert "ship" in describe(data.consonant("ʃ"))  # segment object, same hint
+
+
+def test_describe_falls_back_to_features_for_an_unlisted_segment():
+    # a hypothetical segment with no curated hint is still described from its features
+    from conlang.phonology.features import Consonant, Place, Manner, Voicing
+    from conlang.phonology.ipa_guide import describe
+    fake = Consonant("ǂ", 0.0, Place.PALATAL, Manner.PLOSIVE, Voicing.VOICELESS)
+    desc = describe(fake)
+    assert "palatal" in desc and "plosive" in desc
+
+
+def test_pronunciation_key_lists_each_phoneme_once_and_aligned():
+    from conlang.phonology.ipa_guide import pronunciation_key
+    inv = Inventory.from_ipa("p t k a i u")
+    key = pronunciation_key(inv.segments)
+    lines = key.splitlines()
+    assert len(lines) == 6  # one row per phoneme, no duplicates
+    assert all(line.startswith("  /") for line in lines)
+    assert "boot" in key  # the /u/ hint
+
+
+def test_pronunciation_key_dedups_repeated_segments():
+    from conlang.phonology.ipa_guide import pronunciation_key
+    p = data.consonant("p")
+    assert len(pronunciation_key([p, p, p]).splitlines()) == 1
+
+
+def test_ipa_cli_keys_a_seeded_inventory(capsys):
+    args = cli.build_parser().parse_args(["ipa", "--seed", "8"])
+    cli.cmd_ipa(args)
+    out = capsys.readouterr().out
+    assert "Pronunciation key" in out and "Inventory" in out
+
+
+def test_ipa_cli_all_lists_consonants_and_vowels(capsys):
+    args = cli.build_parser().parse_args(["ipa", "--all"])
+    cli.cmd_ipa(args)
+    out = capsys.readouterr().out
+    assert "Consonants:" in out and "Vowels:" in out
+    assert "church" in out  # the /t͡ʃ/ hint, an affricate, is present
+
+
+def test_phonology_cli_includes_a_pronunciation_key_unless_suppressed(capsys):
+    base = ["phonology", "--random", "--seed", "5"]
+    cli.cmd_phonology(cli.build_parser().parse_args(base))
+    assert "Pronunciation key" in capsys.readouterr().out
+    cli.cmd_phonology(cli.build_parser().parse_args(base + ["--no-key"]))
+    assert "Pronunciation key" not in capsys.readouterr().out
+
+
+def test_ipa_cli_keys_an_explicit_inventory(capsys):
+    args = cli.build_parser().parse_args(["ipa", "--inventory", "p t k a i u"])
+    cli.cmd_ipa(args)
+    out = capsys.readouterr().out
+    assert "Pronunciation key" in out
+    assert "boot" in out and "see" in out  # /u/ and /i/ hints
+    assert "church" not in out  # /t͡ʃ/ isn't in this inventory
+
+
+def test_describe_unknown_string_is_graceful():
+    from conlang.phonology.ipa_guide import describe
+    assert "no pronunciation hint" in describe("ZZZ")  # never raises on an unknown symbol
+
+
+def test_pronunciation_key_of_nothing_is_empty():
+    from conlang.phonology.ipa_guide import pronunciation_key
+    assert pronunciation_key([]) == ""
