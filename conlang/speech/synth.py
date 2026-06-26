@@ -125,9 +125,15 @@ class Synthesizer:
     def _render(self, segs, total, f1s, f2s, f3s, glottal) -> list[float]:
         sr = self.voice.sample_rate
         two_pi = 2.0 * math.pi
-        # Cascade resonators: constant radii/gains, frequencies vary per sample.
+        # Cascade resonators: constant radii (bandwidths), frequencies vary per sample. Each
+        # resonator's input gain is normalized to UNIT GAIN AT DC per sample
+        # (A = 1 - 2r·cosθ + r²), which keeps the voiced level consistent and audible across
+        # all vowels. The earlier frequency-independent gain (1-r)·√(1-r²), cascaded three
+        # times, attenuated the voiced path ~thousands of times below the noise sources, so any
+        # word with a stop burst or fricative drowned its vowels out as static after
+        # normalization. DC-normalized gains fix that level imbalance at the source.
         r = tuple(math.exp(-math.pi * bw / sr) for bw in _BW)
-        g = tuple((1.0 - ri) * math.sqrt(1.0 - ri * ri) for ri in r)
+        r0sq, r1sq, r2sq = r[0] * r[0], r[1] * r[1], r[2] * r[2]
         s1a = s1b = s2a = s2b = s3a = s3b = 0.0  # cascade states
         na = nb = 0.0                            # noise-band state
 
@@ -157,13 +163,13 @@ class Synthesizer:
 
                 if src.kind == "voiced":
                     c1 = 2.0 * r[0] * math.cos(two_pi * f1s[i] / sr)
-                    y1 = g[0] * x + c1 * s1a - r[0] * r[0] * s1b
+                    y1 = (1.0 - c1 + r0sq) * x + c1 * s1a - r0sq * s1b
                     s1b, s1a = s1a, y1
                     c2 = 2.0 * r[1] * math.cos(two_pi * f2s[i] / sr)
-                    y2 = g[1] * y1 + c2 * s2a - r[1] * r[1] * s2b
+                    y2 = (1.0 - c2 + r1sq) * y1 + c2 * s2a - r1sq * s2b
                     s2b, s2a = s2a, y2
                     c3 = 2.0 * r[2] * math.cos(two_pi * f3s[i] / sr)
-                    y3 = g[2] * y2 + c3 * s3a - r[2] * r[2] * s3b
+                    y3 = (1.0 - c3 + r2sq) * y2 + c3 * s3a - r2sq * s3b
                     s3b, s3a = s3a, y3
                     val = y3
                 elif src.kind == "noise" and src.noise_band:

@@ -252,6 +252,31 @@ def test_distinct_places_differ():
     assert p["p"] != p["t"] != p["k"] and p["p"] != p["k"]
 
 
+def _rms(xs):
+    return math.sqrt(sum(x * x for x in xs) / max(1, len(xs)))
+
+
+def test_vowels_are_audible_next_to_noise_not_drowned_out():
+    # Regression: the voiced cascade once rendered ~thousands of times quieter than the noise
+    # sources, so a vowel after a stop/fricative vanished under normalization and the word was
+    # just static. A vowel's level must be comparable to (here, at least a third of) a
+    # fricative's, so it survives in the same word.
+    sy = synth(0)
+    for v in ("a", "u", "i"):
+        vowel = _rms(sy.synthesize(segs(v)))
+        fric = _rms(sy.synthesize(segs("s")))
+        assert vowel > fric * 0.3, f"/{v}/ ({vowel:.3f}) is too quiet beside /s/ ({fric:.3f})"
+
+
+def test_a_vowel_after_a_stop_carries_most_of_the_energy():
+    # In "ku" the vowel region must dominate the burst+aspiration, not the reverse (the static
+    # bug made the noise dominate). Compare the loud tail (vowel) to the head (the /k/).
+    out = synth(0).synthesize(segs("k u"))
+    head = out[: len(out) // 3]      # the /k/ closure + burst + aspiration
+    tail = out[2 * len(out) // 3:]   # well into the /u/ vowel
+    assert _rms(tail) > _rms(head)
+
+
 def test_cascade_stays_finite_and_bounded():
     # A run of narrow-bandwidth vowels through the 3-stage cascade must not blow up.
     out = synth(0).synthesize(segs("i i i i u u a a"))
