@@ -84,11 +84,18 @@ _PLACE_BURST = {
     Place.POSTALVEOLAR: 2500, Place.RETROFLEX: 2200, Place.PALATAL: 2800, Place.VELAR: 1800,
     Place.UVULAR: 1400, Place.PHARYNGEAL: 1200, Place.GLOTTAL: 1000,
 }
+# Aspiration (VOT) length by place: velars/uvulars are the most aspirated, labials the least.
+# Glottal is unused (a glottal stop is excluded from aspiration above).
+_ASPIRATION_S = {
+    Place.BILABIAL: 0.015, Place.LABIODENTAL: 0.015, Place.DENTAL: 0.022, Place.ALVEOLAR: 0.025,
+    Place.POSTALVEOLAR: 0.025, Place.RETROFLEX: 0.025, Place.PALATAL: 0.030, Place.VELAR: 0.035,
+    Place.UVULAR: 0.035, Place.PHARYNGEAL: 0.030, Place.GLOTTAL: 0.0,
+}
 _PLACE_FRICATIVE = {
     Place.BILABIAL: (1500, 1200), Place.LABIODENTAL: (4500, 2500), Place.DENTAL: (6500, 2500),
     Place.ALVEOLAR: (6000, 1800), Place.POSTALVEOLAR: (3500, 1500), Place.RETROFLEX: (2800, 1500),
     Place.PALATAL: (3000, 1800), Place.VELAR: (1600, 1200), Place.UVULAR: (1200, 1000),
-    Place.PHARYNGEAL: (1000, 900), Place.GLOTTAL: (1500, 3000),
+    Place.PHARYNGEAL: (1000, 900), Place.GLOTTAL: (1500, 1200),
 }
 
 
@@ -152,6 +159,36 @@ def apply_velar_pinch(segments: Sequence[Segment], phones: list[Phone]) -> list[
     return out
 
 
+def apply_breathy_glottal(segments: Sequence[Segment], phones: list[Phone]) -> list[Phone]:
+    """Colour a glottal fricative /h/ with an adjacent vowel's F2, so it sounds like a breathy
+    (whispered) version of that vowel rather than unshaped broadband hiss — the difference
+    between an /h/ and 'static'. Narrows the noise band onto the vowel's F2 (a filtered,
+    vowel-like resonance instead of near-white noise).
+
+    The band is centred on the flanking vowels' F2, averaged when /h/ sits between two vowels
+    (mirroring :func:`apply_velar_pinch`'s averaging) so an intervocalic /h/ blends both; a
+    glottal fricative with no vowel neighbour keeps its default band. ``phones`` must be
+    parallel to ``segments`` (one phone each), as :func:`plan_phone` mapped over them produces.
+    """
+    assert len(phones) == len(segments), "phones must be parallel to segments (one each)"
+    out = list(phones)
+    for i, seg in enumerate(segments):
+        if not (isinstance(seg, Consonant) and seg.place is Place.GLOTTAL
+                and seg.manner is Manner.FRICATIVE):
+            continue
+        neighbour_f2 = [
+            vowel_formants(segments[j])[1]
+            for j in (i - 1, i + 1)
+            if 0 <= j < len(segments) and isinstance(segments[j], Vowel)
+        ]
+        if not neighbour_f2:
+            continue
+        f2 = sum(neighbour_f2) / len(neighbour_f2)
+        src = out[i].sources[0]
+        out[i] = replace(out[i], sources=(replace(src, noise_band=(f2, 700)),))
+    return out
+
+
 # --- The plan -----------------------------------------------------------------------
 def plan_phone(seg: Segment) -> Phone:
     if isinstance(seg, Vowel):
@@ -168,17 +205,36 @@ def plan_phone(seg: Segment) -> Phone:
         if voiced:
             sources.append(Source(0.05, "voiced", 0.3))  # a low voice bar during closure
         else:
-            sources.append(Source(0.055, "silence"))
-        sources.append(Source(0.012, "noise", amp=0.7, noise_band=(_PLACE_BURST[seg.place], 1500)))
+            sources.append(Source(0.05, "silence"))
+        # A glottal stop /ʔ/ is a closure of the vocal folds themselves: no oral burst and no
+        # aspiration (aspiration *is* glottal turbulence after an oral release — there is no
+        # oral cavity to aspirate through). Render it as the bare closure; every other stop
+        # gets a place-shaped burst.
+        if seg.place is not Place.GLOTTAL:
+            sources.append(
+                Source(0.012, "noise", amp=0.6, noise_band=(_PLACE_BURST[seg.place], 1500))
+            )
         if m is Manner.AFFRICATE:
             band = _PLACE_FRICATIVE[seg.place]
             sources.append(Source(0.07, "noise", amp=0.5, noise_band=band, voiced_noise=voiced))
+        elif not voiced and seg.place is not Place.GLOTTAL:
+            # Aspiration (voice-onset delay): a soft breath bridging the burst and the following
+            # voicing. Without it an unaspirated burst butted onto the vowel sounds like a click.
+            # VOT is place-dependent — velars are the most aspirated, labials the least — so the
+            # breath's length scales with place.
+            sources.append(Source(_ASPIRATION_S[seg.place], "noise", amp=0.2, noise_band=(1500, 2000)))
         return Phone(formants, tuple(sources), voiced_resonant=False)
 
     if m in (Manner.FRICATIVE, Manner.LATERAL_FRICATIVE):
         band = _PLACE_FRICATIVE[seg.place]
+        # /h/ is a soft breath (aspiration), not a sibilant: quieter and a touch shorter, and
+        # coloured by the neighbouring vowel in apply_breathy_glottal so it doesn't hiss like
+        # static. Other fricatives keep their fuller, place-shaped noise.
+        glottal = seg.place is Place.GLOTTAL
+        amp = 0.3 if glottal else 0.5
+        dur = 0.10 if glottal else 0.13
         return Phone(
-            formants, (Source(0.13, "noise", amp=0.5, noise_band=band, voiced_noise=voiced),),
+            formants, (Source(dur, "noise", amp=amp, noise_band=band, voiced_noise=voiced),),
             voiced_resonant=False,
         )
 

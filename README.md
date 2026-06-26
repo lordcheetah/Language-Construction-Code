@@ -40,8 +40,11 @@ These sit on top of the whole engine and ship last:
   time-varying resonators with **formant transitions** — a vowel glides toward each
   neighbouring consonant's locus, so place of articulation is actually audible — and the
   **velar pinch**, where a velar's F2 locus assimilates toward the adjacent vowel (higher by
-  a front vowel, lower by a back one). Robotic but real, offline, and deterministic. Backlog:
-  parallel-formant amplitudes and an optional `espeak-ng` backend.
+  a front vowel, lower by a back one). Voiceless stops get place-dependent **aspiration** (a
+  voice-onset breath, longest on velars) so a release reads as a stop rather than a click, and
+  **/h/** is voiced like a whispered copy of its neighbouring vowel (its noise band tracks the
+  vowel's F2) rather than broadband hiss. Robotic but real, offline, and deterministic.
+  Backlog: parallel-formant amplitudes and an optional `espeak-ng` backend.
 - **Tutorial** *(done)* — `conlang.tutorial`: an interactive, guided walkthrough that
   teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
   random one) and watch a `Language` take shape, ending with a sample sentence and the seed

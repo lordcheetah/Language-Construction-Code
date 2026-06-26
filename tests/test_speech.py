@@ -13,6 +13,7 @@ import wave
 from conlang.phonology import data
 from conlang.speech.phones import (
     Source, Phone, plan_phone, vowel_formants, consonant_formants, apply_velar_pinch,
+    apply_breathy_glottal,
 )
 from conlang.speech.synth import Voice, Synthesizer, _to_pcm16
 
@@ -118,13 +119,14 @@ def test_velar_pinch_bends_the_synthesized_formant_track():
 
 def test_plan_shapes_by_manner():
     assert _kinds(data.vowel("a")) == ["voiced"]
-    # voiceless plosive: silent closure then a noise burst
-    assert _kinds(data.consonant("p")) == ["silence", "noise"]
-    # voiced plosive: a voiced bar instead of silence
+    # voiceless plosive: silent closure, a noise burst, then aspiration (the VOT breath)
+    assert _kinds(data.consonant("p")) == ["silence", "noise", "noise"]
+    # voiced plosive: a voiced bar instead of silence, and NO aspiration
     assert plan_phone(data.consonant("b")).sources[0].kind == "voiced"
+    assert _kinds(data.consonant("b")) == ["voiced", "noise"]
     assert _kinds(data.consonant("s")) == ["noise"]
     assert _kinds(data.consonant("m")) == ["voiced"]
-    # affricate: closure, burst, frication
+    # affricate: closure, burst, frication (no separate aspiration — the frication is the release)
     assert len(plan_phone(data.consonant("t͡ʃ")).sources) == 3
     # vowels and sonorants are "voiced resonant"; obstruents are not
     assert plan_phone(data.vowel("a")).voiced_resonant
@@ -146,6 +148,65 @@ def test_formant_transition_into_a_vowel():
     assert min(f2s) < a_f2 - 100
     # and it reaches the /a/ steady value by the end
     assert abs(f2s[-1] - a_f2) < 60
+
+
+# --- Aspiration (voiceless stops) and breathy /h/ (anti-click, anti-static) ---------
+def test_voiceless_plosive_has_aspiration_after_the_burst():
+    # the aspiration source bridges burst -> voicing so the stop isn't a bare click
+    src = plan_phone(data.consonant("k")).sources
+    assert [s.kind for s in src] == ["silence", "noise", "noise"]
+    burst, asp = src[1], src[2]
+    assert asp.amp < burst.amp          # aspiration is the softer trailing breath
+    assert 0.0 < asp.duration <= 0.05   # short voice-onset puff
+
+
+def test_voiced_plosive_is_not_aspirated():
+    # voiced stops have a voice bar and no aspiration breath
+    assert [s.kind for s in plan_phone(data.consonant("g")).sources] == ["voiced", "noise"]
+
+
+def test_glottal_stop_is_a_bare_closure_no_burst_or_aspiration():
+    # /ʔ/ closes the vocal folds: no oral burst, no aspiration — just the closure (silence)
+    assert _kinds(data.consonant("ʔ")) == ["silence"]
+
+
+def test_aspiration_is_place_dependent_velar_more_than_labial():
+    # velars carry the longest voice-onset time, labials the shortest
+    p_asp = plan_phone(data.consonant("p")).sources[-1].duration
+    k_asp = plan_phone(data.consonant("k")).sources[-1].duration
+    assert k_asp > p_asp
+
+
+def test_glottal_fricative_is_a_soft_breath_not_a_sibilant():
+    h = plan_phone(data.consonant("h")).sources[0]
+    s = plan_phone(data.consonant("s")).sources[0]
+    assert h.amp < s.amp  # /h/ is quieter than the sibilant /s/
+
+
+def test_breathy_glottal_colours_h_with_the_following_vowel():
+    # /h/ before /i/ vs before /u/ takes different noise-band centres (the vowel's F2),
+    # instead of the same broadband hiss — so it tracks the vowel rather than sounding static.
+    def h_band(symbols):
+        s = segs(symbols)
+        phones = apply_breathy_glottal(s, [plan_phone(x) for x in s])
+        return next(p.sources[0].noise_band for seg, p in zip(s, phones) if seg.ipa == "h")
+    hi, hu = h_band("h i"), h_band("h u")
+    assert hi != hu
+    assert hi[0] == vowel_formants(data.vowel("i"))[1]  # centred on /i/'s F2
+    assert hi[1] == 700  # narrowed band (was the broadband 3000 that hissed)
+
+
+def test_breathy_glottal_averages_two_flanking_vowels_and_falls_back():
+    from conlang.speech.phones import apply_breathy_glottal as bg
+    # intervocalic /h/ blends both flanking vowels' F2 (like the velar pinch)
+    s = segs("a h i")
+    band = next(p.sources[0].noise_band for seg, p in zip(s, bg(s, [plan_phone(x) for x in s]))
+                if seg.ipa == "h")
+    expected = (vowel_formants(data.vowel("a"))[1] + vowel_formants(data.vowel("i"))[1]) / 2
+    assert band[0] == expected
+    # a glottal with no vowel neighbour is left at its default band (a no-op)
+    s = segs("h")
+    assert bg(s, [plan_phone(x) for x in s]) == [plan_phone(data.consonant("h"))]
 
 
 # --- Synthesis contract -------------------------------------------------------------
