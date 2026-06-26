@@ -116,6 +116,9 @@ class Clause:
     indirect_object: NounPhrase | None = None  # the recipient of a ditransitive (give X to Y)
     tense: str = "pres"
     obliques: list[AdpositionalPhrase] = field(default_factory=list)
+    # An oblique fronted (topicalized) to clause-initial position — the most common
+    # verb-second first constituent, and a topic in any language. Must be one of `obliques`.
+    topic: "AdpositionalPhrase | None" = None
     negated: bool = False
     # Sentence type: "declarative", "interrogative" (yes/no question), or "imperative".
     mood: str = "declarative"

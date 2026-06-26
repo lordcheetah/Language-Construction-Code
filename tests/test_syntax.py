@@ -1084,6 +1084,83 @@ def test_adposition_placement_follows_parameter():
     assert forms(post.linearize(clause))[-2:] == ["po", "ku"]
 
 
+# --- Oblique topicalization ---------------------------------------------------------
+def _locative_clause(topicalized: bool):
+    near = lex("k u", "adposition", "near")
+    pp = AdpositionalPhrase(near, NounPhrase(BIRD), "near")  # "near the bird" = ku po
+    return Clause(NounPhrase(WOMAN), SEE, obliques=[pp], topic=pp if topicalized else None)
+
+
+def test_topicalized_oblique_fronts_to_clause_initial():
+    lin = Linearizer(_params(WordOrder.SVO, adposition=Adposition.PREPOSITION), _system())
+    # not topicalized: the oblique sits clause-finally (after S V)
+    assert forms(lin.linearize(_locative_clause(False))) == ["mi", "ta", "ku", "po"]
+    # topicalized: the oblique fronts to clause-initial, the core order follows
+    assert forms(lin.linearize(_locative_clause(True))) == ["ku", "po", "mi", "ta"]
+
+
+def test_topicalized_oblique_triggers_verb_second():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True,
+                             adposition=Adposition.PREPOSITION), _system())
+    # German "Gestern sah ich ...": the fronted oblique is first, the verb second, then S, O
+    assert forms(lin.linearize(_locative_clause(True))) == ["ku", "po", "ta", "mi"]
+
+
+def test_a_non_topic_oblique_stays_clause_final():
+    near = lex("k u", "adposition", "near")
+    on = lex("s u", "adposition", "on")
+    topic_pp = AdpositionalPhrase(near, NounPhrase(BIRD), "near")
+    other_pp = AdpositionalPhrase(on, NounPhrase(WOMAN), "on")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[topic_pp, other_pp], topic=topic_pp)
+    lin = Linearizer(_params(WordOrder.SVO, adposition=Adposition.PREPOSITION), _system())
+    out = forms(lin.linearize(clause))
+    # the topic fronts; the other oblique stays clause-final: [near bird] woman see [on woman]
+    assert out[:2] == ["ku", "po"] and out[-2:] == ["su", "mi"]
+
+
+def test_v2_topicalized_ditransitive():
+    lin = Linearizer(_params(WordOrder.SOV, verb_second=True,
+                             adposition=Adposition.PREPOSITION), _ditrans_system())
+    near = lex("k u", "adposition", "near")
+    pp = AdpositionalPhrase(near, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD),
+                    indirect_object=NounPhrase(CHILD), obliques=[pp], topic=pp)
+    # [topic] V S IO O: ku po, ta, mi, child.DAT, bird.ACC
+    assert forms(lin.linearize(clause)) == ["ku", "po", "ta", "mi", "dul", "pon"]
+
+
+def test_wh_fronting_takes_precedence_over_a_topic_in_v2():
+    lin = Linearizer(_params(WordOrder.SVO, verb_second=True, wh_fronting=True,
+                             adposition=Adposition.PREPOSITION), _system())
+    near = lex("k u", "adposition", "near")
+    pp = AdpositionalPhrase(near, NounPhrase(WOMAN), "near")
+    what = lex("s i", "noun", "what")
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(what),
+                    questioned=Role.OBJECT, obliques=[pp], topic=pp)
+    out = forms(lin.linearize(clause))
+    # the wh-object fronts (V2: O V S); the oblique is NOT fronted, it stays clause-final
+    assert out[0] == "sin" and out[-2:] == ["ku", "mi"]
+
+
+def test_topicalization_is_main_clause_only():
+    # inside a relative clause (matrix=False) the topic is not fronted; it stays clause-final
+    lin = Linearizer(_params(WordOrder.SVO, adposition=Adposition.PREPOSITION), _system())
+    near = lex("k u", "adposition", "near")
+    pp = AdpositionalPhrase(near, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp], topic=pp)
+    inner = [t.ipa for t in lin._core_tokens(clause, matrix=False)]
+    assert inner == ["mi", "ta", "ku", "po"]  # oblique clause-final, not fronted
+
+
+def test_topic_must_be_one_of_the_obliques():
+    near = lex("k u", "adposition", "near")
+    stray = AdpositionalPhrase(near, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[], topic=stray)  # topic not in obliques
+    lin = Linearizer(_params(WordOrder.SVO), _system())
+    with pytest.raises(ValueError):
+        lin.linearize(clause)
+
+
 # --- Fusional morphology through the linearizer -------------------------------------
 def test_inflection_class_flows_through_to_the_surface():
     # Two nouns differing only in declension must surface differently in a sentence.

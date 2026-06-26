@@ -296,6 +296,8 @@ def cmd_syntax(args) -> int:
             NounPhrase(nouns["stone"], definiteness="indef"),
             indirect_object=NounPhrase(nouns["child"], definiteness="def"),
         ),
+        # Topicalization: a fronted oblique ("near the river, the bird sleeps").
+        _topicalized_clause(nouns, iverbs, adps),
     ]
 
     print("\nSample sentences:")
@@ -306,6 +308,13 @@ def cmd_syntax(args) -> int:
         for line in sentence.interlinear().splitlines():
             print(f"    {line}")
     return 0
+
+
+def _topicalized_clause(nouns, iverbs, adps) -> Clause:
+    """A clause whose locative oblique is fronted (topicalized) to clause-initial position."""
+    pp = AdpositionalPhrase(adps["near"], NounPhrase(nouns["river"], definiteness="def"), "near")
+    return Clause(NounPhrase(nouns["bird"], definiteness="def"), iverbs["sleep"],
+                  obliques=[pp], topic=pp)
 
 
 def _english_gloss(clause) -> str:

@@ -128,9 +128,13 @@ declarative, a wh-word in a content question, and a polar question is verb-first
 clauses keep the base order since V2 is main-clause only), and **object agreement** (a
 minority of languages are polypersonal — the verb cross-references its object too via
 object_person/object_number, glossed `see.1SG>3PL`; under ergative the primary slot indexes
-the absolutive object and the secondary the agent). Still to build: oblique/adjunct
-topicalization and auxiliary inversion, and postnominal/suffixed articles. Oblique phrases
-are still placed clause-finally rather than by a positional parameter.
+the absolutive object and the secondary the agent), and **oblique topicalization** (a
+`Clause.topic` — one of the clause's obliques — fronts to clause-initial position; it is the
+canonical verb-second first constituent, so under V2 the verb follows it, while a content
+question's wh-fronting takes precedence over it; main-clause only, so a relative clause keeps
+its oblique clause-final). Still to build: auxiliary inversion and postnominal/suffixed
+articles. Non-topic oblique phrases are still placed clause-finally rather than by a
+positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

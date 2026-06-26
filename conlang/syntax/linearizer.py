@@ -124,6 +124,8 @@ class Linearizer:
         an embedded clause, where verb-second does not apply (V2 is a main-clause phenomenon)."""
         if clause.indirect_object is not None and clause.object is None:
             raise ValueError("an indirect object (recipient) requires a direct object")
+        if clause.topic is not None and not any(pp is clause.topic for pp in clause.obliques):
+            raise ValueError("clause.topic must be one of the clause's obliques")
         transitive = clause.is_transitive
         constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
         drop_subject = clause.is_imperative or self._pro_drops_subject(clause)
@@ -138,8 +140,21 @@ class Linearizer:
             if clause.indirect_object is not None:
                 constituents["IO"] = self._argument(clause.indirect_object, recipient_case)
 
+        # A topicalized oblique is fronted to clause-initial position; the rest stay final.
+        # Topicalization is main-clause only (like V2), and a content-question wh-fronting takes
+        # precedence over it (only one constituent can occupy the pre-verbal position).
+        fronted_topic = clause.topic if matrix else None
+        if (fronted_topic is not None and self.params.verb_second
+                and clause.questioned is not None and self.params.wh_fronting):
+            fronted_topic = None  # the wh-word fronts; this oblique stays clause-final
+        topic = self._adpositional_phrase(fronted_topic) if fronted_topic is not None else []
+
         if matrix and self.params.verb_second and not clause.is_imperative and "V" in constituents:
-            order = self._verb_second_order(clause, constituents)
+            if topic:
+                # the fronted oblique is the V2 first constituent, so the verb comes second
+                order = ["V", *(s for s in ("S", "IO", "O") if s in constituents)]
+            else:
+                order = self._verb_second_order(clause, constituents)
         else:
             order = list(self.params.basic_order.sequence)
             # The recipient sits immediately before the theme (a common default; case, not
@@ -154,14 +169,15 @@ class Linearizer:
                     order.remove(q_slot)
                     order.insert(0, q_slot)
 
-        words: list[GlossedWord] = []
+        words: list[GlossedWord] = list(topic)  # the fronted topic, if any, comes first
         for slot in order:
             if slot in constituents:
                 words.extend(constituents[slot])
-        # Obliques are placed clause-finally here (a simplification); their *internal*
+        # The remaining obliques are placed clause-finally (a simplification); their *internal*
         # adposition order does follow the language's pre/postposition parameter.
         for pp in clause.obliques:
-            words.extend(self._adpositional_phrase(pp))
+            if pp is not fronted_topic:
+                words.extend(self._adpositional_phrase(pp))
         return words
 
     def _verb_second_order(self, clause: Clause, constituents: dict) -> list[str]:
@@ -170,8 +186,9 @@ class Linearizer:
         is verb-first (V1, German "Siehst du …?"); a content question fronts the wh-word; an
         ordinary declarative fronts the subject (the unmarked topic).
 
-        Simplifications: only the subject or a questioned object can front (no adjunct/oblique
-        or object topicalization, the other common German first constituents), and the
+        A fronted oblique topic is handled upstream in :meth:`_core_tokens` (which overrides
+        this method), so here only the subject or a questioned object fronts. Simplifications:
+        no plain-object topicalization (the other common German first constituent), and the
         post-verbal remainder is a fixed subject-recipient-object order rather than the base
         order's midfield. Embedded clauses are out of scope (handled by ``matrix=False``)."""
         present = [s for s in ("S", "IO", "O") if s in constituents]
