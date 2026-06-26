@@ -119,7 +119,10 @@ person and number — to recover it; the verb now agrees with the subject's pers
 ergative language keeps the subject since its transitive verb agrees with the object),
 **free-word articles** (definiteness shown by a separate determiner — grammaticalized from
 the demonstrative and the numeral 'one' — at the noun phrase's left edge, suppressing the
-definiteness affix so there is no double-marking; falls back to morphology when absent), and
+definiteness affix so there is no double-marking; falls back to morphology when absent), with
+a minority of article languages **suffixing the definite article** as a postnominal enclitic
+bound onto the noun (Scandinavian *hus-et*, Romanian, Bulgarian) — case stays inside it, the
+article outside (`woman.ACC-DEF`), while the indefinite stays a free prenominal word, and
 **differential object marking** (only a prominent/definite object takes the accusative; an
 indefinite or bare object — and a non-specific wh-object — is left unmarked, a coordinated
 object marked only when every conjunct is definite), and **verb-second** (the finite verb
@@ -132,8 +135,8 @@ the absolutive object and the secondary the agent), and **oblique topicalization
 `Clause.topic` — one of the clause's obliques — fronts to clause-initial position; it is the
 canonical verb-second first constituent, so under V2 the verb follows it, while a content
 question's wh-fronting takes precedence over it; main-clause only, so a relative clause keeps
-its oblique clause-final). Still to build: auxiliary inversion and postnominal/suffixed
-articles. Non-topic oblique phrases are still placed clause-finally rather than by a
+its oblique clause-final). Still to build: auxiliary inversion. Non-topic oblique phrases are
+still placed clause-finally rather than by a
 positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)

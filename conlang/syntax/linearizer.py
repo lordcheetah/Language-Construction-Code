@@ -298,9 +298,16 @@ class Linearizer:
                 "coordination is only supported in subject/object position, not as a "
                 "possessor or relative-clause head"
             )
-        # A free-word-article language realizes definiteness as a separate determiner, so the
-        # noun itself is not inflected for it (no double-marking).
+        # An article language realizes definiteness with a separate determiner, so the noun
+        # itself is not inflected for it (no double-marking). A suffixing language binds the
+        # *definite* article onto the noun as a postnominal enclitic (Scandinavian hus-et)
+        # rather than placing it as a free prenominal word; the indefinite stays prenominal.
+        # Simplification: the enclitic always hosts on the noun head — matching Scandinavian,
+        # but not the Romanian/Bulgarian pattern where a prenominal adjective hosts it instead
+        # (frumoas-a carte), nor the Scandinavian double definiteness with adjectives.
         article = self._article(np.definiteness)
+        suffixing = (article is not None and self.params.suffixed_article
+                     and np.definiteness == "def")
         bundle_def = None if article is not None else np.definiteness
         number = self._number_for(np.head.word_class, np.number)
         gender = np.head.gender  # the noun's lexical gender (inflects the noun if it marks gender)
@@ -310,6 +317,8 @@ class Linearizer:
         marked = self._marked(np.head.word_class)
         gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def)
         noun = self._inflected_word(np.head, noun_bundle, gloss)
+        if suffixing:
+            noun = self._enclitic(noun, article)  # hus + et -> huset (one bound word)
 
         tokens: list[GlossedWord] = [noun]
         if np.adjective is not None:
@@ -327,9 +336,21 @@ class Linearizer:
             tokens = _place(self.params.genitive, gen, tokens)
         if np.relative is not None:
             tokens = _place(self.params.relative, self._relative_clause(np.relative), tokens)
-        if article is not None:
+        if article is not None and not suffixing:
             tokens = [article, *tokens]  # the determiner sits at the noun phrase's left edge
         return tokens
+
+    def _enclitic(self, host: GlossedWord, clitic: GlossedWord) -> GlossedWord:
+        """Bind a clitic onto its host noun as a single suffixed word (hus + et -> huset).
+
+        The article's phonology and gloss tag are simply concatenated onto the (already
+        inflected) noun, modelling the Scandinavian/Romanian suffixed definite article as one
+        orthographic word — distinct from a free-standing determiner. No morphophonological
+        fusion at the seam is applied; that would be the job of the sound-change layer.
+        """
+        return GlossedWord(
+            host.roman + clitic.roman, host.ipa + clitic.ipa, host.gloss + "-" + clitic.gloss
+        )
 
     def _article(self, definiteness: str | None) -> GlossedWord | None:
         """A free article word for a determiner language, else None.

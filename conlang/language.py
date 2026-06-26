@@ -63,7 +63,8 @@ from conlang.writing.system import WritingSystem
 # v24: morphology may roll a paucal number value (alongside/instead of dual), changing RNG.
 # v25: the verb may mark clusivity (a 1st-person inclusive/exclusive category), changing RNG.
 # v26: morphology may roll a trial number value (requires a dual), changing RNG.
-GENERATOR_VERSION = 26
+# v27: syntax rolls a suffixed-definite-article parameter (another shared-RNG draw before lexicon/writing).
+GENERATOR_VERSION = 27
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

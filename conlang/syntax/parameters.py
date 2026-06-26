@@ -109,6 +109,11 @@ class SyntaxParameters:
     ditransitive: DitransitiveAlignment = DitransitiveAlignment.INDIRECTIVE
     pro_drop: bool = False  # a pronominal subject may be dropped when agreement recovers it
     articles: bool = False  # definiteness shown by a free article word, not an affix
+    # The definite article is a postnominal enclitic bound to the noun (Scandinavian hus-et,
+    # Romanian om-ul, Bulgarian) rather than a free prenominal word. Only meaningful when
+    # `articles` is set; the indefinite article stays a free prenominal word (the common
+    # Scandinavian asymmetry: free "a", suffixed "the").
+    suffixed_article: bool = False
     differential_object_marking: bool = False  # only a prominent (definite) object is case-marked
     verb_second: bool = False  # the finite verb sits second in a main clause (V2)
 
@@ -125,10 +130,17 @@ class SyntaxParameters:
             f"  questions:   {self.polar_question.value}; wh-words {wh}\n"
             f"  ditransitive: {self.ditransitive.value}\n"
             f"  pro-drop:    {'yes' if self.pro_drop else 'no'} (null pronominal subjects)\n"
-            f"  articles:    {'free word' if self.articles else 'none / affixal'}\n"
+            f"  articles:    {self._articles_desc()}\n"
             f"  object case: {'differential (definite only)' if self.differential_object_marking else 'uniform'}\n"
             f"  verb-second: {'yes (V2 main clauses)' if self.verb_second else 'no'}"
         )
+
+    def _articles_desc(self) -> str:
+        if not self.articles:
+            return "none / affixal"
+        if self.suffixed_article:
+            return "suffixed definite enclitic, free indefinite word"
+        return "free word"
 
 
 def derive_correlates(
@@ -191,6 +203,11 @@ def derive_correlates(
 
     # Many languages have no articles at all; those that do often use free words.
     articles = rng.random() < 0.40
+    # A minority of article languages suffix the definite article onto the noun as an enclitic
+    # (Scandinavian, Romanian, Bulgarian). The draw is unconditional (not short-circuited by
+    # `articles`) for a stable RNG stream; it only takes effect where the language has articles.
+    suffixes_definite = rng.random() < 0.30
+    suffixed_article = articles and suffixes_definite
 
     # Differential object marking (mark only prominent/definite objects) is common but a
     # minority — Spanish, Turkish, Hindi, Hebrew, etc.
@@ -212,6 +229,7 @@ def derive_correlates(
         ditransitive=ditransitive,
         pro_drop=pro_drop,
         articles=articles,
+        suffixed_article=suffixed_article,
         differential_object_marking=differential_object_marking,
         verb_second=verb_second,
     )

@@ -155,7 +155,10 @@ def test_make_sentence_free_articles_add_determiner_words():
     import dataclasses
 
     lang = Language.generate(8)
-    art = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, articles=True))
+    # Force free (prenominal) articles: a suffixed-article roll would bind the definite onto
+    # the noun instead of adding a separate determiner word, which this test isn't about.
+    art = dataclasses.replace(lang, syntax=dataclasses.replace(
+        lang.syntax, articles=True, suffixed_article=False))
     no_art = dataclasses.replace(lang, syntax=dataclasses.replace(lang.syntax, articles=False))
     kw = dict(subject_definiteness="def", object_definiteness="indef")
     with_art = art.make_sentence("woman", "see", "bird", **kw)

@@ -247,6 +247,17 @@ def test_wh_fronting_correlates_with_word_order():
     assert vo > ov  # VO languages front wh-words more often
 
 
+def test_suffixed_article_implies_articles():
+    # The suffixed-definite parameter never fires on an article-less language (it's gated on
+    # `articles`), and it does occur among article languages over many seeds.
+    suffixed = 0
+    for s in range(300):
+        p = derive_correlates(WordOrder.SVO, random.Random(s))
+        assert not (p.suffixed_article and not p.articles)  # never without articles
+        suffixed += p.suffixed_article
+    assert suffixed > 0  # but it does happen (a minority of article languages)
+
+
 def test_ergative_object_wh_is_unmarked():
     # Under ergative alignment the object is absolutive (unmarked), even when questioned.
     clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(WHO), questioned=Role.OBJECT)
@@ -995,6 +1006,68 @@ def test_free_article_sits_outside_an_adjective():
     out = forms(_article_lin().linearize(clause))
     # DET ADJ N (adjective after the noun by _params default): article at the NP's left edge
     assert out[0] == "do" and out[1:3] == ["mi", "ra"]
+
+
+# --- Suffixed (postnominal enclitic) definite article -------------------------------
+def _suffix_article_lin(order=WordOrder.SVO):
+    return Linearizer(_params(order, articles=True, suffixed_article=True),
+                      _system(), particles=_ARTICLE_PARTICLES)
+
+
+def test_suffixed_definite_article_binds_onto_the_noun():
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    out = _suffix_article_lin().linearize(clause)
+    # the definite article is enclitic: woman 'mi' + 'do' -> one word 'mido', glossed woman-DEF
+    assert forms(out) == ["mido", "ta"]
+    assert [w.gloss for w in out.words] == ["woman-DEF", "see.SG"]
+
+
+def test_suffixed_language_keeps_a_free_prenominal_indefinite():
+    # the Scandinavian asymmetry: only the definite suffixes; the indefinite stays a free word.
+    clause = Clause(NounPhrase(WOMAN, definiteness="indef"), SEE)
+    out = _suffix_article_lin().linearize(clause)
+    assert forms(out) == ["mo", "mi", "ta"]
+    assert [w.gloss for w in out.words][:2] == ["INDEF", "woman"]
+
+
+def test_suffixed_article_suppresses_the_definiteness_affix():
+    DEFN = CATEGORIES["definiteness"]
+    system = _system()
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (DEFN,))
+    noun.agglutinative_affixes[("definiteness", "def")] = Affix(
+        (data.consonant("d"),), Position.SUFFIX, FeatureBundle.of(definiteness="def"), "DEF"
+    )
+    system.paradigms["noun"] = noun
+    clause = Clause(NounPhrase(WOMAN, definiteness="def"), SEE)
+    lin = Linearizer(_params(WordOrder.SVO, articles=True, suffixed_article=True),
+                     system, particles=_ARTICLE_PARTICLES)
+    out = lin.linearize(clause)
+    # no -d affix on the noun (that would be 'middo'); only the enclitic article carries DEF
+    assert forms(out)[0] == "mido"
+    assert out.words[0].gloss == "woman-DEF"  # single DEF, not double-marked
+
+
+def test_suffixed_article_stays_bound_to_the_noun_under_an_adjective():
+    clause = Clause(NounPhrase(WOMAN, adjective=BIG, definiteness="def"), SEE)
+    out = forms(_suffix_article_lin().linearize(clause))
+    # the enclitic stays on the noun head; the adjective sits outside it (N-DEF ADJ)
+    assert out[:2] == ["mido", "ra"]
+
+
+def test_a_bare_noun_takes_no_suffixed_article():
+    clause = Clause(NounPhrase(WOMAN), SEE)  # no definiteness
+    assert forms(_suffix_article_lin().linearize(clause)) == ["mi", "ta"]
+
+
+def test_suffixed_definite_object_orders_case_inside_the_article():
+    # A definite object under DOM takes the accusative; the suffixed article sits outside it
+    # (the enclitic grammaticalized after the case system): bird + ACC + DEF -> 'pondo'.
+    lin = Linearizer(_params(WordOrder.SVO, articles=True, suffixed_article=True,
+                             differential_object_marking=True),
+                     _system(), particles=_ARTICLE_PARTICLES)
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, definiteness="def"))
+    obj = lin.linearize(clause).words[-1]
+    assert obj.ipa == "pondo" and obj.gloss == "bird.ACC-DEF"
 
 
 # --- Stem allomorphy flows through to the surface -----------------------------------
