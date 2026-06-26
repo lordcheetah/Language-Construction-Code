@@ -115,6 +115,11 @@ FIELDS: list[str] = list(_RAW.keys())
 # Every concept (including derived/compound products) must live in a known field.
 assert all(c.field in FIELDS for c in CONCEPTS), "a concept references an unknown field"
 
+# A *conditional* pronoun, not part of the universal core: a separate inclusive 'we', minted
+# only for a language that grammatically distinguishes clusivity (so it is kept out of CONCEPTS
+# and coined on demand by the generator). The default 'we' then serves as the exclusive form.
+WE_INCLUSIVE: Concept = Concept("we (incl)", "noun", "deixis", 0.80)
+
 
 def _check_derivation_order() -> None:
     """A stacked derivation (whose base is itself a derivation product) must be listed after

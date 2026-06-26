@@ -64,7 +64,8 @@ from conlang.writing.system import WritingSystem
 # v25: the verb may mark clusivity (a 1st-person inclusive/exclusive category), changing RNG.
 # v26: morphology may roll a trial number value (requires a dual), changing RNG.
 # v27: syntax rolls a suffixed-definite-article parameter (another shared-RNG draw before lexicon/writing).
-GENERATOR_VERSION = 27
+# v28: a clusivity-marking language coins a separate inclusive 'we' pronoun (extra lexicon RNG draw).
+GENERATOR_VERSION = 28
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -151,6 +152,22 @@ class Language:
             )
         return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class, entry.gender)
 
+    def _subject_lexeme(self, gloss: str, clusivity: str | None) -> Lexeme:
+        """The subject's lexeme, choosing the separate inclusive 'we' when the subject is an
+        inclusive first person and the language has that pronoun. The gloss stays "we" (the
+        .INCL/.EXCL tag is added at linearization), so only the *form* differs from exclusive
+        'we'. Falls back to the ordinary lookup for every other subject.
+
+        Scope: the split is offered only in subject position (make_sentence exposes
+        ``subject_clusivity`` but no object/recipient counterpart), so an inclusive 'we' used
+        as an object or possessor falls back to the plain (exclusive) form. Subjects are the
+        common case; extending it would just mean threading clusivity onto the other NPs."""
+        if gloss == "we" and clusivity == "inclusive":
+            incl = self.lexicon.get("we (incl)")
+            if incl is not None:
+                return Lexeme(incl.form, "noun", "we", incl.inflection_class, incl.gender)
+        return self._lexeme(gloss, expect_pos="noun")
+
     def make_sentence(
         self,
         subject: str,
@@ -230,7 +247,7 @@ class Language:
         if recipient is not None and obj is None:
             raise ValueError("a recipient (indirect object) needs a direct object too")
         subj = NounPhrase(
-            self._lexeme(subject, expect_pos="noun"),
+            self._subject_lexeme(subject, subject_clusivity),
             adjective=self._lexeme(subject_adjective, expect_pos="adjective")
             if subject_adjective else None,
             number=subject_number,

@@ -540,6 +540,27 @@ def test_clusivity_is_suppressed_under_ergative_transitive():
     assert "INCL" not in v.gloss and "EXCL" not in v.gloss
 
 
+def test_first_person_pronoun_is_glossed_for_clusivity():
+    # the pronoun word itself (not just the verb) carries the inclusive/exclusive distinction
+    lin = Linearizer(_params(WordOrder.SVO), _clusivity_system())
+    incl = next(w for w in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="inclusive"), SEE)).words
+        if w.gloss.startswith("we"))
+    excl = next(w for w in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="exclusive"), SEE)).words
+        if w.gloss.startswith("we"))
+    assert incl.gloss.endswith(".INCL") and excl.gloss.endswith(".EXCL")
+
+
+def test_pronoun_clusivity_gloss_requires_the_language_to_mark_it():
+    # _system's verb has no clusivity category, so a clusivity-tagged pronoun stays untagged
+    lin = Linearizer(_params(WordOrder.SVO), _system())
+    w = next(x for x in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="inclusive"), SEE)).words
+        if x.gloss.startswith("we"))
+    assert "INCL" not in w.gloss and "EXCL" not in w.gloss
+
+
 # --- Object agreement (polypersonal) ------------------------------------------------
 OBJ_PERSON = CATEGORIES["object_person"]
 OBJ_NUMBER = CATEGORIES["object_number"]

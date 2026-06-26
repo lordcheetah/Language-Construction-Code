@@ -208,6 +208,41 @@ def test_make_sentence_clusivity():
     assert any("EXCL" in w.gloss for w in excl.words)
 
 
+def test_clusivity_language_has_a_separate_inclusive_we_pronoun():
+    # the lexicon mints a distinct inclusive 'we', and an inclusive subject uses its form
+    for seed in range(120):
+        lang = Language.generate(seed)
+        verb = lang.morphology.paradigms.get("verb")
+        if verb and any(c.name == "clusivity" for c in verb.marked):
+            break
+    else:
+        raise AssertionError("no clusivity-marking seed found in range")
+    we = lang.lexicon.get("we")
+    we_incl = lang.lexicon.get("we (incl)")
+    assert we is not None and we_incl is not None
+    assert we_incl.form != we.form  # a genuinely distinct pronoun, not a copy
+    # the inclusive subject surfaces the inclusive form; the exclusive keeps the plain 'we' —
+    # both glossed 'we...' (the .INCL/.EXCL tag carries the contrast), but distinct on the surface.
+    def we_word(clus):
+        s = lang.make_sentence("we", "run", subject_number="pl", subject_clusivity=clus)
+        return next(w for w in s.words if w.gloss.startswith("we"))
+    incl_word, excl_word = we_word("inclusive"), we_word("exclusive")
+    assert incl_word.gloss.endswith(".INCL") and excl_word.gloss.endswith(".EXCL")
+    assert incl_word.ipa != excl_word.ipa  # the two 'we' pronouns differ on the surface
+
+
+def test_no_separate_inclusive_we_without_clusivity():
+    # a language whose verb does NOT mark clusivity has no second 'we' entry
+    for seed in range(120):
+        lang = Language.generate(seed)
+        verb = lang.morphology.paradigms.get("verb")
+        if not (verb and any(c.name == "clusivity" for c in verb.marked)):
+            break
+    else:
+        raise AssertionError("every seed marked clusivity (unexpected)")
+    assert lang.lexicon.get("we (incl)") is None
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

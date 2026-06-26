@@ -316,6 +316,15 @@ class Linearizer:
         )
         marked = self._marked(np.head.word_class)
         gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def)
+        # A 1st-person pronoun in a clusivity-marking language shows its inclusive/exclusive
+        # value (a separate 'we' word, or just disambiguating the gloss). The gate is whether
+        # the language HAS the contrast (verb marks clusivity), not whether the verb realizes
+        # it in this clause — so the tag stays on the pronoun even where verb agreement drops
+        # clusivity (ergative-transitive, singular). The pronoun's reference is inherently
+        # in/exclusive regardless of agreement, so tagging it there is intentional, not a leak.
+        if (np.person == "1" and getattr(np, "clusivity", None) in ("inclusive", "exclusive")
+                and "clusivity" in self._marked("verb")):
+            gloss += ".INCL" if np.clusivity == "inclusive" else ".EXCL"
         noun = self._inflected_word(np.head, noun_bundle, gloss)
         if suffixing:
             noun = self._enclitic(noun, article)  # hus + et -> huset (one bound word)

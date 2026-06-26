@@ -20,6 +20,7 @@ from conlang.lexicon.concepts import (
     DERIVATIONS,
     COMPOUNDS,
     BY_GLOSS,
+    WE_INCLUSIVE,
 )
 from conlang.lexicon.lexicon import Lexicon, LexicalEntry, Etymology
 
@@ -90,6 +91,16 @@ def build_lexicon(
         klass, gender = feat(concept.pos)
         lex.entries[concept.gloss] = LexicalEntry(
             concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
+        )
+
+    # 1b. A clusivity-marking language has a separate inclusive 'we' pronoun, distinct from the
+    # default 'we' (which then serves as the exclusive). Coin a fresh root for it. Languages
+    # without verb clusivity skip this and consume no RNG, so their lexicon output is unchanged.
+    if _marks_clusivity(morphology) and "we" in lex.entries:
+        form, roman = coin(WE_INCLUSIVE.basicness)
+        klass, gender = feat(WE_INCLUSIVE.pos)
+        lex.entries[WE_INCLUSIVE.gloss] = LexicalEntry(
+            WE_INCLUSIVE, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender,
         )
 
     # 2. Colexification.
@@ -173,6 +184,22 @@ def _merge_kin(lex: Lexicon, source: str, target: str, note: str) -> None:
 # Lexical gender values and their rough prevalence (masculine the default/most common).
 _GENDERS = ("masc", "fem", "neut")
 _GENDER_WEIGHTS = (0.45, 0.35, 0.20)
+
+
+def _marks_clusivity(morphology) -> bool:
+    """True if this language's verb marks clusivity (1st-person inclusive vs exclusive),
+    which is what licenses a separate inclusive 'we' pronoun in the lexicon.
+
+    Simplification: pronoun clusivity is keyed off VERB agreement here. Typologically the
+    pronoun is the more basic locus — many languages have inclusive/exclusive pronouns with no
+    verb agreement at all (Mandarin 咱们/我们, Tok Pisin yumi/mipela) — so this proxy under-
+    generates the split and never yields the common "pronoun clusivity, no verb agreement"
+    type. It is the simple option while clusivity is modelled only as a verb category; if
+    clusivity ever becomes an independent pronoun-system parameter, revisit this."""
+    if morphology is None:
+        return False
+    verb = morphology.paradigms.get("verb")
+    return verb is not None and any(c.name == "clusivity" for c in verb.marked)
 
 
 def _roll_gender(rng: random.Random, pos: str, morphology) -> str | None:

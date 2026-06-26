@@ -87,8 +87,11 @@ initial suffix, the Finnish-gradation / Celtic-mutation pattern (it keys off the
 stem-adjacent suffix and stays strong word-finally). The verb can also mark **clusivity** —
 a 1st-person inclusive ("you and I") vs exclusive ("they and I") distinction, glossed
 `1PL.INCL`/`1PL.EXCL`, shown only for a non-singular 1st-person subject the verb agrees with.
-Still to add: class-bound stems, true analytic-particle isolating morphology, and a separate
-inclusive/exclusive *pronoun*. **Derivation stacking**
+A language that marks clusivity also gets a **separate inclusive "we" pronoun** — a distinct
+lexical root for inclusive *we*, with the plain *we* serving as the exclusive; an inclusive
+subject surfaces the distinct form and the pronoun itself is glossed `we.INCL`/`we.EXCL`
+(currently offered in subject position only). Still to add: class-bound stems and true
+analytic-particle isolating morphology. **Derivation stacking**
 is supported — a word can be built by two derivational steps (e.g. *stone* → *stony* [HAVING] →
 *petrify* [BECOME], carrying both affixes when the language has them). A gender-marking language
 now assigns each noun a **lexical gender** and ties its inflection
