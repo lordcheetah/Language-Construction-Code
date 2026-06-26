@@ -79,6 +79,9 @@ CATEGORIES: dict[str, GrammaticalCategory] = {
     # A minority feature, so low commonness.
     "object_person": GrammaticalCategory("object_person", ("1", "2", "3"), "3", 0.15),
     "object_number": GrammaticalCategory("object_number", ("sg", "pl"), "sg", 0.15),
+    # Clusivity: a 1st-person inclusive ("you and I") vs exclusive ("they and I") distinction
+    # (Austronesian, Dravidian, …); only relevant when the subject is 1st person.
+    "clusivity": GrammaticalCategory("clusivity", ("exclusive", "inclusive"), "exclusive", 0.12),
 }
 
 
@@ -99,9 +102,10 @@ class WordClass:
 # Greenbergian: number inner, case outer.
 WORD_CLASSES: dict[str, WordClass] = {
     "noun": WordClass("noun", ("number", "case", "gender", "definiteness")),
-    # Object agreement is outermost (least relevant to the stem, Bybee), after subject agreement.
+    # Object agreement is outermost (least relevant to the stem, Bybee), after subject agreement;
+    # clusivity sits with the (1st-person) subject agreement.
     "verb": WordClass("verb", ("aspect", "tense", "mood", "polarity", "person", "number",
-                               "object_person", "object_number")),
+                               "clusivity", "object_person", "object_number")),
     "adjective": WordClass("adjective", ("gender", "number", "case")),
 }
 

@@ -474,6 +474,17 @@ def test_derivation_rule_applies_affix():
     assert ipa(rule.apply(segs("k a t"))) == "katno"
 
 
+def test_generator_can_roll_clusivity():
+    # some seed's verb marks clusivity (a 1st-person inclusive/exclusive category)
+    for seed in range(60):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        verb = system.paradigms.get("verb")
+        if verb and any(c.name == "clusivity" for c in verb.marked):
+            return
+    raise AssertionError("no clusivity in 60 seeds (unexpected)")
+
+
 def test_generator_can_roll_object_agreement():
     # some seed's verb marks object agreement (polypersonal), a minority feature
     for seed in range(40):

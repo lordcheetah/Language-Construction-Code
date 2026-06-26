@@ -190,6 +190,21 @@ def test_make_sentence_differential_object_marking():
     assert not any("bird" in w.gloss and "ACC" in w.gloss for w in indefinite.words)
 
 
+def test_make_sentence_clusivity():
+    # a language whose verb marks clusivity, so "we" distinguishes inclusive from exclusive
+    for seed in range(120):
+        lang = Language.generate(seed)
+        verb = lang.morphology.paradigms.get("verb")
+        if verb and any(c.name == "clusivity" for c in verb.marked):
+            break
+    else:
+        raise AssertionError("no clusivity-marking seed found in range")
+    incl = lang.make_sentence("we", "run", subject_number="pl", subject_clusivity="inclusive")
+    excl = lang.make_sentence("we", "run", subject_number="pl", subject_clusivity="exclusive")
+    assert any("INCL" in w.gloss for w in incl.words)
+    assert any("EXCL" in w.gloss for w in excl.words)
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

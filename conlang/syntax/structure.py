@@ -46,6 +46,7 @@ class NounPhrase:
     genitive: "NounPhrase | None" = None  # a possessor noun phrase
     relative: "RelativeClause | None" = None  # a modifying relative clause
     person: str | None = None  # "1"/"2"/"3" for a pronoun; None = a 3rd-person full NP
+    clusivity: str | None = None  # "inclusive"/"exclusive" for a 1st-person ("we") subject
 
     @property
     def gloss(self) -> str:

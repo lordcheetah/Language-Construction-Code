@@ -61,7 +61,8 @@ from conlang.writing.system import WritingSystem
 # v22: nouns get a lexical gender that drives their inflection class (class<->gender link).
 # v23: a stacked derivation (petrify <- stony <- stone) was added to the lexicon.
 # v24: morphology may roll a paucal number value (alongside/instead of dual), changing RNG.
-GENERATOR_VERSION = 24
+# v25: the verb may mark clusivity (a 1st-person inclusive/exclusive category), changing RNG.
+GENERATOR_VERSION = 25
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -157,6 +158,7 @@ class Language:
         subject_number: str = "sg",
         subject_definiteness: str | None = None,
         subject_adjective: str | None = None,
+        subject_clusivity: str | None = None,
         object_number: str = "sg",
         object_definiteness: str | None = None,
         recipient: str | None = None,
@@ -177,9 +179,9 @@ class Language:
         clause = self._build_clause(
             subject, verb, obj,
             subject_number=subject_number, subject_definiteness=subject_definiteness,
-            subject_adjective=subject_adjective, object_number=object_number,
-            object_definiteness=object_definiteness, recipient=recipient, tense=tense,
-            negated=negated, mood=mood, question=question,
+            subject_adjective=subject_adjective, subject_clusivity=subject_clusivity,
+            object_number=object_number, object_definiteness=object_definiteness,
+            recipient=recipient, tense=tense, negated=negated, mood=mood, question=question,
         )
         return self._linearizer().linearize(clause)
 
@@ -210,6 +212,7 @@ class Language:
         subject_number: str = "sg",
         subject_definiteness: str | None = None,
         subject_adjective: str | None = None,
+        subject_clusivity: str | None = None,
         object_number: str = "sg",
         object_definiteness: str | None = None,
         recipient: str | None = None,
@@ -231,6 +234,7 @@ class Language:
             number=subject_number,
             definiteness=subject_definiteness,
             person=_PRONOUN_PERSON.get(subject),  # a pronoun subject carries its person
+            clusivity=subject_clusivity,           # ...and, for "we", its clusivity
         )
         obj_np = None
         if obj is not None:

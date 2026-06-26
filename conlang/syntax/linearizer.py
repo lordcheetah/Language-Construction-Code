@@ -384,12 +384,21 @@ class Linearizer:
             other = clause.subject if ergative else clause.object
             obj_person = getattr(other, "person", None) or "3"
             obj_number = "pl" if getattr(other, "number", "sg") != "sg" else "sg"
+        # Clusivity is a property of a 1st-person NON-SINGULAR subject ("we" inclusive vs
+        # exclusive): vacuous for any other person/number, and only coherent when the verb's
+        # primary agreement is the subject (so it's suppressed under ergative alignment, where
+        # a transitive verb agrees with the object instead).
+        clusivity = None
+        if ("clusivity" in marked and agr is clause.subject and not clause.is_imperative
+                and getattr(clause.subject, "person", None) == "1"
+                and getattr(clause.subject, "number", "sg") != "sg"):
+            clusivity = getattr(clause.subject, "clusivity", None) or "exclusive"
         bundle = FeatureBundle.of(
             tense=clause.tense, person=person, number=number, mood=mood, polarity=polarity,
-            **_drop_none(object_person=obj_person, object_number=obj_number),
+            **_drop_none(clusivity=clusivity, object_person=obj_person, object_number=obj_number),
         )
         gloss = clause.verb.gloss + _verb_tags(
-            marked, person, number, clause.tense, mood, polarity, obj_person, obj_number
+            marked, person, number, clause.tense, mood, polarity, obj_person, obj_number, clusivity
         )
         return self._inflected_word(clause.verb, bundle, gloss)
 
@@ -461,13 +470,15 @@ def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: st
 def _verb_tags(
     marked: set[str], person: str, number: str, tense: str, mood: str, polarity: str,
     object_person: str | None = None, object_number: str | None = None,
+    clusivity: str | None = None,
 ) -> str:
     """Agreement/tense/mood/polarity gloss for the verb, gated on what it actually marks.
 
     Object (polypersonal) agreement is written after the primary agreement with a ``>``
     (primary-controller > cross-referenced argument). Under nominative-accusative that reads
     as agent>patient — ``see.1SG>3PL`` for "I see them"; under ergative the primary slot is the
-    absolutive object, so it reads object>agent.
+    absolutive object, so it reads object>agent. A 1st-person subject's clusivity follows as
+    ``.INCL``/``.EXCL`` (``see.1PL.INCL``).
     """
     agr = ""
     if "person" in marked:
@@ -482,6 +493,8 @@ def _verb_tags(
     if obj:
         agr = f"{agr}>{obj}" if agr else f">{obj}"
     tags = [agr] if agr else []
+    if "clusivity" in marked and clusivity is not None:
+        tags.append("INCL" if clusivity == "inclusive" else "EXCL")
     if "tense" in marked and tense and tense != "pres":
         tags.append(tense.upper())
     if "mood" in marked and mood == "imperative":

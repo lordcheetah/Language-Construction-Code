@@ -474,6 +474,61 @@ def test_adjective_agrees_with_the_nouns_gender():
     assert "kat" in masc and "ra" in masc
 
 
+# --- Clusivity (1st-person inclusive/exclusive) -------------------------------------
+def _clusivity_system() -> MorphologySystem:
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE,
+                    (PERSON, NUMBER, CATEGORIES["clusivity"]))
+    verb.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.vowel("u"),), Position.SUFFIX, FeatureBundle.of(number="pl"), "PL")
+    verb.agglutinative_affixes[("clusivity", "inclusive")] = Affix(
+        (data.consonant("n"),), Position.SUFFIX, FeatureBundle.of(clusivity="inclusive"), "INCL")
+    return MorphologySystem(Typology.AGGLUTINATIVE,
+                            {"verb": verb, "noun": _system().paradigms["noun"]})
+
+
+WE = lex("n i", "noun", "we")
+
+
+def test_clusivity_distinguishes_inclusive_and_exclusive_first_person():
+    lin = Linearizer(_params(WordOrder.SVO), _clusivity_system())
+    incl = next(w for w in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="inclusive"), SEE)).words
+        if "see" in w.gloss)
+    excl = next(w for w in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="exclusive"), SEE)).words
+        if "see" in w.gloss)
+    assert incl.gloss == "see.1PL.INCL" and incl.roman == "taun"   # inclusive takes the -n affix
+    assert excl.gloss == "see.1PL.EXCL" and excl.roman == "tau"    # exclusive is the zero base
+
+
+def test_clusivity_is_vacuous_for_non_first_person():
+    lin = Linearizer(_params(WordOrder.SVO), _clusivity_system())
+    v = next(w for w in lin.linearize(
+        Clause(NounPhrase(BIRD, number="pl"), SEE)).words if "see" in w.gloss)  # 3rd person
+    assert "INCL" not in v.gloss and "EXCL" not in v.gloss  # no clusivity tag
+
+
+def test_clusivity_is_suppressed_for_a_singular_subject():
+    # there is no inclusive/exclusive singular: a 1sg "I" gets no clusivity tag
+    lin = Linearizer(_params(WordOrder.SVO), _clusivity_system())
+    me = lex("d a", "noun", "I")
+    v = next(w for w in lin.linearize(
+        Clause(NounPhrase(me, person="1", number="sg", clusivity="inclusive"), SEE)).words
+        if "see" in w.gloss)
+    assert "INCL" not in v.gloss and "EXCL" not in v.gloss
+
+
+def test_clusivity_is_suppressed_under_ergative_transitive():
+    # under ergative the transitive verb agrees with the object, so a 1st-person subject's
+    # clusivity isn't shown (it would produce an incoherent 3rd-person + INCL gloss)
+    lin = Linearizer(_params(WordOrder.SVO, alignment=Alignment.ERGATIVE_ABSOLUTIVE),
+                     _clusivity_system())
+    v = next(w for w in lin.linearize(
+        Clause(NounPhrase(WE, person="1", number="pl", clusivity="inclusive"),
+               SEE, NounPhrase(BIRD))).words if "see" in w.gloss)
+    assert "INCL" not in v.gloss and "EXCL" not in v.gloss
+
+
 # --- Object agreement (polypersonal) ------------------------------------------------
 OBJ_PERSON = CATEGORIES["object_person"]
 OBJ_NUMBER = CATEGORIES["object_number"]
