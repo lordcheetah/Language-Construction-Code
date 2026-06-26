@@ -62,7 +62,8 @@ from conlang.writing.system import WritingSystem
 # v23: a stacked derivation (petrify <- stony <- stone) was added to the lexicon.
 # v24: morphology may roll a paucal number value (alongside/instead of dual), changing RNG.
 # v25: the verb may mark clusivity (a 1st-person inclusive/exclusive category), changing RNG.
-GENERATOR_VERSION = 25
+# v26: morphology may roll a trial number value (requires a dual), changing RNG.
+GENERATOR_VERSION = 26
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

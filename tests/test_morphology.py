@@ -446,6 +446,30 @@ def test_four_way_number_inflects_each_value_distinctly():
     assert len(set(forms.values())) == 4  # all four number values are distinct
 
 
+def test_trial_number_inflects_as_its_own_value():
+    num = GrammaticalCategory("number", ("sg", "dual", "trial", "pl"), "sg", 0.70)
+    par = Paradigm(NOUN, Typology.AGGLUTINATIVE, (num,))
+    par.agglutinative_affixes[("number", "trial")] = Affix(
+        (data.consonant("t"),), Position.SUFFIX, FeatureBundle.of(number="trial"), "TRI")
+    assert ipa(par.inflect(segs("k a"), FeatureBundle.of(number="trial"))) == "kat"
+    assert "trial" in {b.get("number") for b in par.enumerate_bundles()}
+
+
+def test_generated_trial_always_implies_a_dual():
+    # the implicational universal: no language has a trial without a dual
+    found = False
+    for seed in range(300):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        noun = system.paradigms.get("noun")
+        cat = next((c for c in noun.marked if c.name == "number"), None) if noun else None
+        if cat is not None and "trial" in cat.values:
+            assert "dual" in cat.values                       # trial requires a dual
+            assert cat.values.index("dual") < cat.values.index("trial")  # ordered dual < trial
+            found = True
+    assert found, "no trial number system in 300 seeds (unexpected)"
+
+
 def test_generator_can_roll_paucal_ordered_in_the_number_system():
     # paucal rolls independently of dual; wherever it appears it sits after sg and any dual,
     # before pl (the values are ordered sg < dual < paucal < pl).

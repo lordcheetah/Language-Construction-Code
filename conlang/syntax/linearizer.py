@@ -446,7 +446,7 @@ class Linearizer:
 # sites use different `.get` fallbacks deliberately: the noun tagger gates out singular before
 # the lookup so its fallback is the generic plural ("PL"); the verb tagger renders singular too,
 # so its fallback is "SG".
-_NUMBER_TAG = {"pl": "PL", "dual": "DU", "paucal": "PAUC"}
+_NUMBER_TAG = {"pl": "PL", "dual": "DU", "trial": "TRI", "paucal": "PAUC"}
 
 
 def _grammatical_tags(marked: set[str], number: str, case: str, definiteness: str | None) -> str:

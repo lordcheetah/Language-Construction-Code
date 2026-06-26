@@ -76,9 +76,10 @@ syncretism; each word is assigned a class), and — added since the first pass �
 allomorphy** (a bound/oblique stem distinct from the citation root, formed by a final-edge
 mutation — final-stop voicing, vowel raising/umlaut — and used whenever the word is overtly
 inflected, optionally restricted to one triggering category) and optional extra **number
-values** (a minority of languages roll a dual and/or a paucal, composing into anything from
-sg/pl up to a four-way sg/dual/paucal/pl system, applied consistently across nouns, verbs and
-adjectives and glossed `DU`/`PAUC`), and **zero-derivation** (conversion: ~15% of
+values** (a minority of languages roll a dual, a trial, and/or a paucal — a trial requires a
+dual, per the implicational universal — composing into anything from sg/pl up to a five-way
+sg/dual/trial/paucal/pl system, applied consistently across nouns, verbs and adjectives and
+glossed `DU`/`TRI`/`PAUC`), and **zero-derivation** (conversion: ~15% of
 eligible derivations — AGENT/RESULT/BECOME — are zero-marked, so the word changes class with
 no affix and the product is homophonous with its base, English *to water*). Stem allomorphy
 can also be **affix-conditioned** — a mutation that fires only before a vowel- (or consonant-)
@@ -86,8 +87,8 @@ initial suffix, the Finnish-gradation / Celtic-mutation pattern (it keys off the
 stem-adjacent suffix and stays strong word-finally). The verb can also mark **clusivity** —
 a 1st-person inclusive ("you and I") vs exclusive ("they and I") distinction, glossed
 `1PL.INCL`/`1PL.EXCL`, shown only for a non-singular 1st-person subject the verb agrees with.
-Still to add: class-bound stems, true analytic-particle isolating morphology, trial number, and
-a separate inclusive/exclusive *pronoun*. **Derivation stacking**
+Still to add: class-bound stems, true analytic-particle isolating morphology, and a separate
+inclusive/exclusive *pronoun*. **Derivation stacking**
 is supported — a word can be built by two derivational steps (e.g. *stone* → *stony* [HAVING] →
 *petrify* [BECOME], carrying both affixes when the language has them). A gender-marking language
 now assigns each noun a **lexical gender** and ties its inflection
