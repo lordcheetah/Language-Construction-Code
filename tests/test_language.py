@@ -371,6 +371,55 @@ def test_evolve_applies_sound_change_to_the_lexicon():
     assert "waterfall" in evolved
 
 
+def test_semantic_shift_reports_drifts_from_the_table():
+    from conlang.lexicon.concepts import SEMANTIC_SHIFTS
+    from conlang.language import SemanticShift
+    lang = Language.generate(5)
+    rules = ["[voiceless plosive] > [+voiced] / V_V", "h > 0 / V_V"]
+    shifts = lang.semantic_shift(rules, random.Random(5))
+    pathways = {(f, t) for f, t, _, _ in SEMANTIC_SHIFTS}
+    for s in shifts:
+        assert isinstance(s, SemanticShift)
+        assert (s.sense_from, s.sense_to) in pathways  # only attested pathways drift
+        assert s.roman and s.ipa                       # carries the daughter (evolved) form
+    # deterministic given the rng
+    assert ([(s.sense_from, s.sense_to) for s in shifts]
+            == [(s.sense_from, s.sense_to) for s in lang.semantic_shift(rules, random.Random(5))])
+
+
+def test_sound_change_homophony_drives_semantic_shift():
+    # collapsing distinctions makes words homophonous, which boosts (and flags) their drift —
+    # this is the "tied to sound change" link
+    lang = Language.generate(5)
+    merge = ["[vowel] > a", "[voiceless plosive] > t"]
+    for r in range(50):
+        if any(s.homophony_driven for s in lang.semantic_shift(merge, random.Random(r))):
+            return
+    raise AssertionError("no homophony-driven shift under a heavily-merging sound change")
+
+
+def test_semantic_shift_is_a_report_not_a_mutation():
+    lang = Language.generate(5)
+    before = lang.lexicon.get("see").ipa
+    lang.semantic_shift(["[voiceless plosive] > [+voiced] / V_V"], random.Random(1))
+    assert lang.lexicon.get("see").ipa == before
+
+
+def test_pre_existing_colexification_is_not_a_sound_change_merger():
+    # pick a language that HAS colexification (some word forms are already shared)...
+    lang = next(L for L in (Language.generate(s) for s in range(20))
+                if len({e.ipa for e in L.lexicon.entries.values()}) < len(L.lexicon.entries))
+    # ...then under an *identity* sound change those forms were ALREADY homophonous, so none is a
+    # new merger: shifts still fire by base probability, but none is flagged homophony-driven.
+    # (Without the colexification exclusion, the shared forms would be mis-flagged as mergers.)
+    fired = driven = 0
+    for r in range(60):
+        for s in lang.semantic_shift([], random.Random(r)):
+            fired += 1
+            driven += s.homophony_driven
+    assert fired > 0 and driven == 0
+
+
 def test_to_dict_is_json_serializable_and_complete():
     lang = Language.generate(11)
     blob = json.dumps(lang.to_dict(), ensure_ascii=False)  # must not raise

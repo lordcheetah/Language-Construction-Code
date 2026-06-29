@@ -481,6 +481,23 @@ def cmd_generate(args) -> int:
         for line in sentence.interlinear().splitlines():
             print(f"    {line}")
 
+    # Diachrony: apply one example sound change and show a few evolved words plus any semantic
+    # drift it triggers (a word is likelier to drift once the change makes it homophonous).
+    daughter = lang.evolve(_DEMO_RULES)
+    changed = []
+    for g, (roman, ipa) in daughter.items():
+        parent = lang.lexicon.get(g)
+        if ipa != parent.ipa and parent.concept.pos != "particle":
+            changed.append((g, parent.roman, roman))
+    if changed:
+        print("\nDiachrony — one sound change evolves the lexicon:")
+        for gloss, before, after in changed[:5]:
+            print(f"  {gloss:<10} {before} → {after}")
+        shifts = lang.semantic_shift(_DEMO_RULES, random.Random(lang.seed))
+        for s in shifts:
+            drv = " (homophony-driven)" if s.homophony_driven else ""
+            print(f"  meaning drift: ‘{s.sense_from}’ → ‘{s.sense_to}’ — {s.kind}{drv}")
+
     if args.out:
         os.makedirs(args.out, exist_ok=True)
         chart_path = os.path.join(args.out, "chart.svg")

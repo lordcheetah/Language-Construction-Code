@@ -213,6 +213,26 @@ DERIVATIONS: list[tuple[str, str, str, str, str]] = [
 
 _check_derivation_order()  # stacked derivations must follow their base's row
 
+# Diachronic semantic shift: attested directional drifts of a word's meaning, applied during
+# evolution (alongside sound change). (from_gloss, to_gloss, kind, base_probability) — the word
+# for `from` may come to mean `to` in the daughter language. Both glosses are inventory concepts.
+# These are classic shift *pathways* (perception->cognition, body->leader, euphemism, ...), not
+# synchronic colexification; a sound change that makes a word homophonous boosts its drift.
+SEMANTIC_SHIFTS: list[tuple[str, str, str, float]] = [
+    ("see", "know", "perception -> cognition", 0.30),   # 'I see' = 'I understand'
+    ("hear", "know", "perception -> cognition", 0.20),
+    ("head", "chief", "metaphor: body -> leader", 0.25),
+    ("hand", "five", "metonymy: hand -> numeral", 0.20),
+    ("die", "sleep", "euphemism", 0.20),
+    ("child", "fruit", "offspring -> produce", 0.15),
+    ("spirit", "god", "breath -> deity", 0.20),
+    # mouth->door also appears in COLEXIFICATION — deliberately: synchronic polysemy (one word,
+    # two senses, in a single language) and diachronic drift (the meaning moving over time) are
+    # distinct phenomena that the same metaphor can drive, not a duplicated entry.
+    ("mouth", "door", "metaphor: opening", 0.15),
+    ("eye", "seed", "metaphor: round thing", 0.15),
+]
+
 # Compounding: (product, (part1, part2)). The product's form is the parts' forms joined.
 COMPOUNDS: list[tuple[str, tuple[str, str]]] = [
     ("waterfall", ("water", "fall")),

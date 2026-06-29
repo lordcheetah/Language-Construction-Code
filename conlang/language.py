@@ -32,9 +32,30 @@ from conlang.syntax.linearizer import Linearizer, Sentence
 from conlang.lexicon.generator import build_lexicon
 from conlang.lexicon.lexicon import Lexicon
 from conlang.lexicon.numerals import build_numerals, NumeralSystem
+from conlang.lexicon.concepts import SEMANTIC_SHIFTS
 from conlang.soundchange.ruleset import RuleSet
 from conlang.writing.generator import build_writing_system
 from conlang.writing.system import WritingSystem
+
+# A word whose meaning drifts is more likely to do so once a sound change has made it
+# homophonous with another word (homophony-driven semantic change) — this multiplies its base
+# shift probability, and is what ties semantic shift to the sound change.
+_HOMOPHONY_BOOST = 2.5
+
+
+@dataclass(frozen=True)
+class SemanticShift:
+    """One diachronic meaning drift: the word for *sense_from* (whose daughter, sound-changed
+    form is *roman*/*ipa*) has come to mean *sense_to*. ``homophony_driven`` is True when the
+    drift was prompted by a sound-change-induced merger (the word collided with another)."""
+
+    sense_from: str
+    sense_to: str
+    kind: str
+    roman: str
+    ipa: str
+    homophony_driven: bool
+
 
 # Bumped whenever a change to any stage alters what a given seed produces. Stored in
 # snapshots so a seed can be paired with the generator version that minted it.
@@ -326,6 +347,39 @@ class Language:
             ipa = "".join(s.ipa for s in evolved)
             out[gloss] = (roman, ipa)
         return out
+
+    def semantic_shift(
+        self, rules: RuleSet | list[str] | str, rng: random.Random
+    ) -> list[SemanticShift]:
+        """The diachronic meaning drifts that accompany evolving the lexicon by *rules*.
+
+        Words drift along attested pathways (perception→cognition, body→leader, euphemism, …);
+        a word is markedly more likely to drift when the sound change has made it homophonous
+        with another (homophony-driven change), which is what ties the shift to the sound
+        change. Returns the shifts that fire (deterministic given *rng*). This is a *report* of
+        how meanings would drift — it does not mutate the language.
+
+        A fired shift means the word for ``sense_from`` comes to *also* mean ``sense_to`` — i.e.
+        added polysemy/extension. The ``sense_to`` concept already has its own native word, so
+        this is meaning *extension*, not lexical replacement of that word.
+        """
+        daughter = self.evolve(rules)  # {gloss: (roman, ipa)} after the sound change
+        # Words the sound change *merged*: distinct parent forms collapsing to one daughter
+        # form. Pre-existing colexification (already-shared parent forms) is excluded, so the
+        # boost reflects genuinely sound-change-induced homophony.
+        by_daughter: dict[str, set[str]] = {}
+        for gloss, (_roman, ipa) in daughter.items():
+            by_daughter.setdefault(ipa, set()).add(self.lexicon.get(gloss).ipa)
+        merged_forms = {ipa for ipa, parents in by_daughter.items() if len(parents) > 1}
+        shifts: list[SemanticShift] = []
+        for sense_from, sense_to, kind, prob in SEMANTIC_SHIFTS:
+            if sense_from not in daughter or sense_to not in self.lexicon.entries:
+                continue
+            roman, ipa = daughter[sense_from]
+            driven = ipa in merged_forms
+            if rng.random() < min(1.0, prob * (_HOMOPHONY_BOOST if driven else 1.0)):
+                shifts.append(SemanticShift(sense_from, sense_to, kind, roman, ipa, driven))
+        return shifts
 
     # --- Export ----------------------------------------------------------------------
     def to_dict(self) -> dict:

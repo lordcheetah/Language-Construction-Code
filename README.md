@@ -184,8 +184,13 @@ still records the analysis, e.g. *go.1SG.PAST*), and a **loanword stratum** (a l
 borrow its cultural/abstract vocabulary — the *society*/*artifact*/*abstract* fields — from a
 donor language that shares its phonemes but rolls its own phonotactics, so the loans are
 writable in the native script yet carry a foreign syllable shape and are marked as borrowed,
-like Latinate words in English). Still to add: suppletive decades and sub-bases (French
-*quatre-vingts*), and semantic shift tied to sound change.
+like Latinate words in English), and **semantic shift tied to sound change** (evolving the
+lexicon through a sound change can also drift word *meanings* along attested pathways —
+*see → know*, *head → chief*, *die → sleep* — and a word is markedly likelier to drift once
+the change has made it homophonous with another, the classic homophony-avoidance link between
+sound change and meaning change; `Language.semantic_shift(rules, rng)` reports the drift, and
+the `generate` command shows a sample). Still to add: suppletive decades and sub-bases (French
+*quatre-vingts*).
 
 ### Deferred (Stage 6 "advanced" backlog)
 
