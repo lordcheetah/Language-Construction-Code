@@ -72,13 +72,19 @@ class StemAlternation:
     word-finally), ``"before_consonant"`` only before a consonant-initial one, ``None`` is
     unconditioned. The trigger and the condition both have to hold.
 
-    Simplification: the alternation is inflection-*class*-independent — one stem rule applies
-    across all declensions/conjugations. Real two-stem systems are often class-bound.
+    ``classes`` makes the alternation **class-bound** — restricted to some declensions/
+    conjugations rather than the whole word class. ``None`` means every class alternates (the
+    default); a tuple of inflection-class ids (``("1", "3")``) means only those classes have
+    the bound stem, the rest keep their root unchanged — a strong/weak split, as in Germanic
+    strong vs. weak verbs or Latin's stem-varying declensions. ``classes`` is independent of
+    ``trigger_category``/``condition`` (all three must hold), so how visible the split is still
+    depends on them and on the shared-citation simplification noted on :class:`Paradigm`.
     """
 
     change: SandhiLike            # root -> bound stem
     trigger_category: str | None = None
     condition: str | None = None  # None | "before_vowel" | "before_consonant"
+    classes: tuple[str, ...] | None = None  # inflection classes it applies to (None = all)
 
     def stem(
         self,
@@ -86,12 +92,15 @@ class StemAlternation:
         full: FeatureBundle,
         marked: tuple,
         following: "Affix | None" = None,
+        inflection_class: str | None = None,
     ) -> list[Segment]:
-        if self._applies(full, marked, following):
+        if self._applies(full, marked, following, inflection_class):
             return list(self.change.apply(list(root)))
         return list(root)
 
-    def _applies(self, full: FeatureBundle, marked: tuple, following) -> bool:
+    def _applies(self, full: FeatureBundle, marked: tuple, following, inflection_class=None) -> bool:
+        if self.classes is not None and (inflection_class or DEFAULT_CLASS) not in self.classes:
+            return False  # this declension/conjugation keeps the unaltered root
         cats = marked if self.trigger_category is None else [
             c for c in marked if c.name == self.trigger_category
         ]
@@ -148,28 +157,35 @@ class Paradigm:
 
         Missing marked categories default to their base value.
         """
-        full = self._complete(bundle)
+        inflection_class = inflection_class or DEFAULT_CLASS  # normalize once: affix selection
+        full = self._complete(bundle)                         # and class-binding agree on it
         agglutinative, fusional = self._affixes(inflection_class)
         if self.typology is Typology.FUSIONAL:
             affix = fusional.get(full)
             overt = affix if (affix is not None and not affix.is_zero) else None
             # Affix conditioning looks at what follows the stem's (right) edge: a suffix.
             following = overt if (overt and overt.position is Position.SUFFIX) else None
-            stem = self._stem(root, full, following)
+            stem = self._stem(root, full, following, inflection_class)
             form = overt.attach(stem) if overt else list(stem)
         else:  # agglutinative and isolating both stack affixes (isolating just has few)
             prefixes, suffixes = self._collect_affixes(full, agglutinative)
             following = suffixes[0] if suffixes else None  # the innermost (stem-adjacent) suffix
-            stem = self._stem(root, full, following)
+            stem = self._stem(root, full, following, inflection_class)
             form = self._attach_affixes(stem, prefixes, suffixes)
         return self._apply_sandhi(form)
 
     def _stem(
-        self, root: Sequence[Segment], full: FeatureBundle, following: "Affix | None"
+        self,
+        root: Sequence[Segment],
+        full: FeatureBundle,
+        following: "Affix | None",
+        inflection_class: str | None = None,
     ) -> list[Segment]:
         if self.stem_alternation is None:
             return list(root)
-        return self.stem_alternation.stem(root, full, self.marked, following)
+        return self.stem_alternation.stem(
+            root, full, self.marked, following, inflection_class
+        )
 
     def _collect_affixes(self, full: FeatureBundle, affixes: dict):
         """The (prefixes, suffixes) realizing *full*, inner-to-outer (stem-adjacent first)."""

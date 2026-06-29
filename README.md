@@ -89,14 +89,17 @@ eligible derivations — AGENT/RESULT/BECOME — are zero-marked, so the word ch
 no affix and the product is homophonous with its base, English *to water*). Stem allomorphy
 can also be **affix-conditioned** — a mutation that fires only before a vowel- (or consonant-)
 initial suffix, the Finnish-gradation / Celtic-mutation pattern (it keys off the innermost,
-stem-adjacent suffix and stays strong word-finally). The verb can also mark **clusivity** —
+stem-adjacent suffix and stays strong word-finally) — and **class-bound**: in a multi-class
+language the alternation may apply to only some declensions/conjugations (a proper subset),
+a strong/weak split where one class mutates its stem and another keeps the plain root. The
+verb can also mark **clusivity** —
 a 1st-person inclusive ("you and I") vs exclusive ("they and I") distinction, glossed
 `1PL.INCL`/`1PL.EXCL`, shown only for a non-singular 1st-person subject the verb agrees with.
 A language that marks clusivity also gets a **separate inclusive "we" pronoun** — a distinct
 lexical root for inclusive *we*, with the plain *we* serving as the exclusive; an inclusive
 subject surfaces the distinct form and the pronoun itself is glossed `we.INCL`/`we.EXCL`
-(currently offered in subject position only). Still to add: class-bound stems and true
-analytic-particle isolating morphology. **Derivation stacking**
+(currently offered in subject position only). Still to add: true analytic-particle isolating
+morphology. **Derivation stacking**
 is supported — a word can be built by two derivational steps (e.g. *stone* → *stony* [HAVING] →
 *petrify* [BECOME], carrying both affixes when the language has them). A gender-marking language
 now assigns each noun a **lexical gender** and ties its inflection

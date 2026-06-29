@@ -325,7 +325,7 @@ def test_stem_alternation_applies_under_fusional_typology():
 
 
 def test_stem_alternation_applies_across_inflection_classes():
-    # The (class-independent) bound stem applies in every declension.
+    # An unbound (classes=None) bound stem applies in every declension.
     rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
     par = _plural_paradigm(stem_alternation=StemAlternation(rs))
     par.extra_classes["2"] = InflectionClass(
@@ -335,6 +335,39 @@ def test_stem_alternation_applies_across_inflection_classes():
     root = segs("k a t")
     assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "1")) == "kads"  # decl 1: kad+s
     assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "2")) == "kadi"  # decl 2: kad+i
+
+
+def test_class_bound_stem_alternation_applies_only_to_its_classes():
+    # A class-bound alternation (a strong/weak split): only declension "2" mutates its stem;
+    # declension "1" keeps the plain root, even though both are overtly inflected.
+    rs = RuleSet.from_rules(["[voiceless plosive] > [+voiced] / _#"])
+    par = _plural_paradigm(stem_alternation=StemAlternation(rs, classes=("2",)))
+    par.extra_classes["2"] = InflectionClass(
+        {("number", "pl"): Affix((data.vowel("i"),), Position.SUFFIX,
+                                 FeatureBundle.of(number="pl"), "PL")}
+    )
+    root = segs("k a t")
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "1")) == "kats"  # weak: root kept
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"), "2")) == "kadi"  # strong: kad+i
+    # the default class is "1" when none is named -> also unaltered here
+    assert ipa(par.inflect(root, FeatureBundle.of(number="pl"))) == "kats"
+
+
+def test_class_bound_alternation_can_be_generated():
+    # some seed organically rolls a class-bound stem alternation (a proper subset of classes)
+    found = False
+    for seed in range(400):
+        phono, _ = _random_phonotactics(seed)
+        system = random_system(phono, random.Random(seed))
+        for par in system.paradigms.values():
+            sa = par.stem_alternation
+            if sa is not None and sa.classes is not None:
+                assert 1 <= len(sa.classes) < len(par.class_ids())  # a proper, non-empty subset
+                assert set(sa.classes) <= set(par.class_ids())
+                found = True
+        if found:
+            break
+    assert found, "no seed organically rolled a class-bound stem alternation"
 
 
 def test_generated_stem_alternation_is_reachable():

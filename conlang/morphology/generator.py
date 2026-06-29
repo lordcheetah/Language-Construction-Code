@@ -190,7 +190,7 @@ def _build_paradigm(
             rng, base_aggl, base_fus, typology, dominant, inventory
         )
         par.extra_classes[str(k)] = InflectionClass(aggl, fus)
-    par.stem_alternation = _build_stem_alternation(rng)
+    par.stem_alternation = _build_stem_alternation(rng, par.class_ids())
     return par
 
 
@@ -205,7 +205,7 @@ _STEM_ALTERNATIONS = (
 )
 
 
-def _build_stem_alternation(rng: random.Random) -> StemAlternation | None:
+def _build_stem_alternation(rng: random.Random, class_ids: list[str]) -> StemAlternation | None:
     """Roll a bound-stem allomorphy rule for some languages (most have none)."""
     if rng.random() >= 0.30:
         return None
@@ -215,7 +215,14 @@ def _build_stem_alternation(rng: random.Random) -> StemAlternation | None:
     # Some stem alternations are affix-conditioned — they fire only before a vowel-initial
     # suffix (lenition/gradation), not on every overt inflection.
     condition = "before_vowel" if rng.random() < 0.40 else None
-    return StemAlternation(RuleSet.from_rules([rule]), condition=condition)
+    # In a multi-class language the alternation is often class-bound — only some declensions/
+    # conjugations have the bound stem (a strong/weak split). Pick a proper, non-empty subset
+    # so at least one class alternates and at least one keeps its plain root.
+    classes = None
+    if len(class_ids) >= 2 and rng.random() < 0.45:
+        k = rng.randint(1, len(class_ids) - 1)
+        classes = tuple(sorted(rng.sample(class_ids, k)))
+    return StemAlternation(RuleSet.from_rules([rule]), condition=condition, classes=classes)
 
 
 def _perturb_affix_set(rng, base_aggl, base_fus, typology, dominant, inventory):

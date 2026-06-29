@@ -65,7 +65,8 @@ from conlang.writing.system import WritingSystem
 # v26: morphology may roll a trial number value (requires a dual), changing RNG.
 # v27: syntax rolls a suffixed-definite-article parameter (another shared-RNG draw before lexicon/writing).
 # v28: a clusivity-marking language coins a separate inclusive 'we' pronoun (extra lexicon RNG draw).
-GENERATOR_VERSION = 28
+# v29: a multi-class language may make a stem alternation class-bound (extra morphology RNG draw).
+GENERATOR_VERSION = 29
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
