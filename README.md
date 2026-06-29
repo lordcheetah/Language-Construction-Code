@@ -149,9 +149,13 @@ the absolutive object and the secondary the agent), and **oblique topicalization
 `Clause.topic` — one of the clause's obliques — fronts to clause-initial position; it is the
 canonical verb-second first constituent, so under V2 the verb follows it, while a content
 question's wh-fronting takes precedence over it; main-clause only, so a relative clause keeps
-its oblique clause-final). Still to build: auxiliary inversion. Non-topic oblique phrases are
-still placed clause-finally rather than by a
-positional parameter.
+its oblique clause-final), and **auxiliary inversion** (a rare, Germanic-style yes/no-question
+strategy: an inflected auxiliary carrying the verb's tense and agreement fronts to clause-initial
+position before the subject — do-support — while the lexical verb appears in its bare form, so
+"the woman saw the bird" questions as *AUX.PAST.3SG woman see bird*; offered to VO languages only
+(a clause-initial tense-auxiliary is incoherent in a verb-final language) and gated off under
+verb-second, which forms its own verb-first questions). Non-topic oblique phrases are still placed
+clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 

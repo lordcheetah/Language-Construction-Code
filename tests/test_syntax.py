@@ -1160,6 +1160,84 @@ def test_isolating_suppletion_is_one_word_not_stem_plus_particle():
     assert "u" not in text    # ...not the bare stem plus a PST particle
 
 
+# --- Auxiliary inversion (do-support) yes/no questions ------------------------------
+_AUX = lex("d o", "verb", "AUX")  # a verb-class auxiliary, so it inflects like a verb
+
+
+def _aux_lin(order=WordOrder.SVO, **kw):
+    return Linearizer(_params(order, polar_question=PolarQuestion.AUX_INVERSION, **kw),
+                      _system(), particles={"aux": _AUX})
+
+
+def test_aux_inversion_fronts_the_auxiliary_and_bares_the_verb():
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), mood="interrogative")
+    out = _aux_lin().linearize(clause)
+    text = [w.ipa for w in out.words]
+    gloss = [w.gloss for w in out.words]
+    assert gloss[0].startswith("AUX")            # the auxiliary is clause-initial
+    assert text.index("do") < text.index("mi")   # ...before the subject (inversion)
+    assert "ta" in text and "see" in gloss       # the lexical verb is bare, glossed as the lemma
+
+
+def test_aux_carries_the_agreement_the_bare_verb_gives_up():
+    sg = _aux_lin().linearize(Clause(NounPhrase(WOMAN), SEE, mood="interrogative"))
+    pl = _aux_lin().linearize(Clause(NounPhrase(WOMAN, number="pl"), SEE, mood="interrogative"))
+    assert sg.words[0].ipa != pl.words[0].ipa    # the auxiliary inflects (number agreement)
+    assert "PL" in pl.words[0].gloss             # ...carrying the plural the bare verb dropped
+    assert all(w.ipa != "tau" for w in pl.words)  # the verb is never the inflected 'tau'
+
+
+def test_no_auxiliary_in_a_plain_declarative():
+    decl = _aux_lin().linearize(Clause(NounPhrase(WOMAN, number="pl"), SEE))
+    assert not any(w.gloss.startswith("AUX") for w in decl.words)
+    assert "tau" in [w.ipa for w in decl.words]  # the declarative verb keeps its inflection
+
+
+def test_aux_inversion_falls_back_gracefully_without_an_auxiliary_word():
+    # AUX_INVERSION but no 'aux' particle supplied: no crash, no aux, verb keeps its inflection
+    lin = Linearizer(_params(WordOrder.SVO, polar_question=PolarQuestion.AUX_INVERSION), _system())
+    out = lin.linearize(Clause(NounPhrase(WOMAN, number="pl"), SEE, mood="interrogative"))
+    assert not any(w.gloss.startswith("AUX") for w in out.words)
+    assert "tau" in [w.ipa for w in out.words]
+
+
+def test_aux_inversion_does_not_apply_to_a_content_question():
+    # a wh-question uses wh-fronting, not do-support: no auxiliary appears
+    who = lex("s u", "noun", "who")
+    out = _aux_lin(wh_fronting=True).linearize(
+        Clause(NounPhrase(who), SEE, NounPhrase(BIRD), questioned=Role.SUBJECT,
+               mood="interrogative"))
+    assert not any(w.gloss.startswith("AUX") for w in out.words)
+
+
+def test_aux_inversion_is_suppressed_under_verb_second():
+    # a V2 language forms its own verb-first questions, so do-support is gated off
+    out = _aux_lin(WordOrder.SOV, verb_second=True).linearize(
+        Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), mood="interrogative"))
+    assert not any(w.gloss.startswith("AUX") for w in out.words)
+
+
+def test_aux_inversion_is_offered_to_vo_orders_only():
+    # do-support fronts a tense-auxiliary to clause-initial — coherent only in a VO language,
+    # so derive_correlates rolls it for VO and never for OV
+    vo = sum(derive_correlates(WordOrder.SVO, random.Random(s)).polar_question
+             is PolarQuestion.AUX_INVERSION for s in range(300))
+    ov = sum(derive_correlates(WordOrder.SOV, random.Random(s)).polar_question
+             is PolarQuestion.AUX_INVERSION for s in range(300))
+    assert vo > 0 and ov == 0
+
+
+def test_aux_inversion_in_an_isolating_language_renders_the_aux_as_particles():
+    # the auxiliary is verb-class; in an isolating language it surfaces as a bare AUX stem plus
+    # a separate tense particle, while the lexical verb stays bare
+    aux = lex("d o", "verb", "AUX")
+    lin = Linearizer(_params(WordOrder.SVO, polar_question=PolarQuestion.AUX_INVERSION),
+                     _isolating_system(), particles={"aux": aux})
+    gloss = [w.gloss for w in lin.linearize(
+        Clause(NounPhrase(WOMAN), SEE, tense="past", mood="interrogative")).words]
+    assert "AUX" in gloss and "PAST" in gloss and "see" in gloss
+
+
 # --- Stem allomorphy flows through to the surface -----------------------------------
 def test_stem_allomorphy_surfaces_in_a_linearized_sentence():
     from conlang.morphology.paradigm import StemAlternation

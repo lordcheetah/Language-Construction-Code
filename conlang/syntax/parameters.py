@@ -93,6 +93,7 @@ class PolarQuestion(Enum):
     PARTICLE_INITIAL = "question particle, clause-initial"
     PARTICLE_FINAL = "question particle, clause-final"
     INTONATION = "intonation only (no overt marker)"
+    AUX_INVERSION = "subject–auxiliary inversion (an auxiliary fronts; do-support)"
 
 
 @dataclass(frozen=True)
@@ -174,13 +175,17 @@ def derive_correlates(
     # Both correlate with head-direction (Dryer): a question particle is clause-final in
     # OV languages and clause-initial in VO ones; negation leans pre-verbal in VO, post-
     # verbal in OV. Verbal negation is order-independent.
+    # Subject–auxiliary inversion (do-support) is a rare, mostly-Germanic strategy that fronts a
+    # tense-auxiliary to clause-initial — only coherent in a VO language (a verb-final language
+    # fronting its auxiliary to absolute-initial is unattested), so it is offered to VO only.
     if basic_order.is_vo:
         negation = rng.choices(
             [Negation.PARTICLE_BEFORE_VERB, Negation.PARTICLE_AFTER_VERB, Negation.VERBAL],
             weights=[0.45, 0.15, 0.40], k=1)[0]
         polar_question = rng.choices(
-            [PolarQuestion.PARTICLE_INITIAL, PolarQuestion.PARTICLE_FINAL, PolarQuestion.INTONATION],
-            weights=[0.40, 0.25, 0.35], k=1)[0]
+            [PolarQuestion.PARTICLE_INITIAL, PolarQuestion.PARTICLE_FINAL,
+             PolarQuestion.INTONATION, PolarQuestion.AUX_INVERSION],
+            weights=[0.38, 0.22, 0.32, 0.08], k=1)[0]
     else:
         negation = rng.choices(
             [Negation.PARTICLE_BEFORE_VERB, Negation.PARTICLE_AFTER_VERB, Negation.VERBAL],

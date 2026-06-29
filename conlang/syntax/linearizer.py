@@ -127,7 +127,12 @@ class Linearizer:
         if clause.topic is not None and not any(pp is clause.topic for pp in clause.obliques):
             raise ValueError("clause.topic must be one of the clause's obliques")
         transitive = clause.is_transitive
-        constituents: dict[str, list[GlossedWord]] = {"V": self._verb_group(clause)}
+        # Subject–auxiliary inversion (do-support): the lexical verb is bare and a fronted,
+        # inflected auxiliary carries its tense/agreement (added clause-initially below).
+        aux_inversion = self._aux_inversion(clause, matrix)
+        constituents: dict[str, list[GlossedWord]] = {
+            "V": self._verb_group(clause, base=aux_inversion)
+        }
         drop_subject = clause.is_imperative or self._pro_drops_subject(clause)
         if not drop_subject and omit is not Role.SUBJECT:
             constituents["S"] = self._argument(
@@ -178,6 +183,12 @@ class Linearizer:
         for pp in clause.obliques:
             if pp is not fronted_topic:
                 words.extend(self._adpositional_phrase(pp))
+        if aux_inversion:
+            # The inflected auxiliary fronts to absolute clause-initial (before the subject).
+            # derive_correlates only rolls AUX_INVERSION for VO languages, where a clause-initial
+            # tense-auxiliary is coherent; a forced verb-final language would strand the bare verb
+            # at the far edge, which is why the parameter is gated to VO at generation time.
+            words = [*self._auxiliary(clause), *words]
         return words
 
     def _verb_second_order(self, clause: Clause, constituents: dict) -> list[str]:
@@ -410,9 +421,11 @@ class Linearizer:
             return [adp, *inner]
         return [*inner, adp]
 
-    def _verb_group(self, clause: Clause) -> list[GlossedWord]:
-        """The verb, plus a negative particle when negation isn't marked on the verb."""
-        verb = self._verb(clause)  # one bound word, or a stem + particles in an isolating lang
+    def _verb_group(self, clause: Clause, base: bool = False) -> list[GlossedWord]:
+        """The verb, plus a negative particle when negation isn't marked on the verb. ``base``
+        renders the lexical verb in its bare citation form — for do-support, where a fronted
+        auxiliary carries the inflection instead (see :meth:`_auxiliary`)."""
+        verb = self._verb(clause, base=base)  # one bound word, or stem + particles (isolating)
         if not clause.negated or self._verbal_negation(clause):
             return verb  # verbal negation is already in the verb's bundle + gloss
         neg = self._particle("neg", "NEG")
@@ -425,7 +438,37 @@ class Linearizer:
             return [*verb, neg]
         return [neg, *verb]  # before the verb (also the fallback position)
 
-    def _verb(self, clause: Clause) -> list[GlossedWord]:
+    def _verb(self, clause: Clause, base: bool = False) -> list[GlossedWord]:
+        """The finite verb. ``base`` yields the bare citation form (do-support: the auxiliary
+        carries the tense/agreement, the lexical verb is uninflected)."""
+        if base:
+            return self._inflected_tokens(
+                clause.verb, FeatureBundle.of(), clause.verb.gloss, clause.verb.gloss
+            )
+        bundle, tags = self._verb_features(clause)
+        gloss = clause.verb.gloss + tags
+        return self._inflected_tokens(clause.verb, bundle, clause.verb.gloss, gloss)
+
+    def _auxiliary(self, clause: Clause) -> list[GlossedWord]:
+        """The fronted interrogative auxiliary (do-support): a verb-class particle inflected
+        with the clause's verb features, so it carries the tense/agreement the bare lexical verb
+        gives up. Empty if the language supplies no auxiliary."""
+        aux = self.particles.get("aux")
+        if aux is None:
+            return []
+        bundle, tags = self._verb_features(clause)
+        return self._inflected_tokens(aux, bundle, "AUX", "AUX" + tags)
+
+    def _aux_inversion(self, clause: Clause, matrix: bool) -> bool:
+        """Whether this main-clause yes/no question uses subject–auxiliary inversion."""
+        return (matrix and clause.mood == "interrogative" and clause.questioned is None
+                and self.params.polar_question is PolarQuestion.AUX_INVERSION
+                and not self.params.verb_second  # V2 forms its own (verb-first) questions
+                and "aux" in self.particles)
+
+    def _verb_features(self, clause: Clause) -> tuple[FeatureBundle, str]:
+        """The verb's inflectional (bundle, gloss-tag string) — shared by the lexical verb and,
+        under auxiliary inversion, the auxiliary that carries them."""
         # Agreement controller: the absolutive argument under ergative alignment (object of
         # a transitive, else subject), otherwise the subject (nominative).
         ergative = clause.is_transitive and self.params.alignment is Alignment.ERGATIVE_ABSOLUTIVE
@@ -457,10 +500,10 @@ class Linearizer:
             tense=clause.tense, person=person, number=number, mood=mood, polarity=polarity,
             **_drop_none(clusivity=clusivity, object_person=obj_person, object_number=obj_number),
         )
-        gloss = clause.verb.gloss + _verb_tags(
+        tags = _verb_tags(
             marked, person, number, clause.tense, mood, polarity, obj_person, obj_number, clusivity
         )
-        return self._inflected_tokens(clause.verb, bundle, clause.verb.gloss, gloss)
+        return bundle, tags
 
     # --- Sentence-type helpers -------------------------------------------------------
     def _verbal_negation(self, clause: Clause) -> bool:
@@ -475,6 +518,8 @@ class Linearizer:
         # Polar marking applies only to yes/no questions, not content (wh-) questions.
         if clause.mood != "interrogative" or clause.questioned is not None:
             return words
+        if self.params.polar_question is PolarQuestion.AUX_INVERSION:
+            return words  # the fronted auxiliary (added in _core_tokens) marks the question
         q = self._particle("q", "Q")
         if q is None or self.params.polar_question is PolarQuestion.INTONATION:
             return words  # intonation only: no overt marker

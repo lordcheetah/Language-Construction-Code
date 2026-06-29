@@ -67,7 +67,8 @@ from conlang.writing.system import WritingSystem
 # v28: a clusivity-marking language coins a separate inclusive 'we' pronoun (extra lexicon RNG draw).
 # v29: a multi-class language may make a stem alternation class-bound (extra morphology RNG draw).
 # v30: frequent words may roll a suppletive stem (go/went) — extra lexicon RNG draws before writing.
-GENERATOR_VERSION = 30
+# v31: syntax may roll subject-aux-inversion questions + an AUX particle is coined (shifts lexicon RNG).
+GENERATOR_VERSION = 31
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -287,6 +288,11 @@ class Language:
             entry = self.lexicon.get(gloss)
             if entry is not None:
                 out[key] = Lexeme(entry.form, "particle", gloss, entry.inflection_class)
+        # The interrogative auxiliary is verb-class so it inflects (carries the verb's tense and
+        # agreement) when it fronts in a subject–auxiliary-inversion question.
+        aux = self.lexicon.get("AUX")
+        if aux is not None:
+            out["aux"] = Lexeme(aux.form, "verb", "AUX", aux.inflection_class)
         return out
 
     def speak(self, word: Word, *, voice=None, rng: random.Random | None = None) -> list[float]:

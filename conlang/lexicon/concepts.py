@@ -34,6 +34,8 @@ _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
     # Grammatical particles: negator, yes/no-question marker, relativizer, coordinators.
     "particle": ("particle", [
         ("not", 0.95), ("Q", 0.85), ("REL", 0.80), ("and", 0.95), ("or", 0.75),
+        # A dummy/periphrastic auxiliary ("do"/"be") for subject–auxiliary-inversion questions.
+        ("AUX", 0.70),
     ]),
     "people": ("noun", [("person", 0.95), ("man", 0.90), ("woman", 0.90), ("child", 0.85)]),
     "body": ("noun", [
