@@ -162,10 +162,13 @@ and a **kinship system** (kin terms plus a rolled typology: siblings distinguish
 merged into one sex-neutral term, and classificatory parent's-sibling merging where uncle =
 father and aunt = mother, vs. descriptive distinct terms), and **irregular teens** (a base-≥10
 language may give the first few numbers above the base — `base+1 … base+3` — their own
-suppletive root, English *eleven/twelve*, reused compositionally in larger numbers). Still to
-add: suppletive decades and sub-bases (French *quatre-vingts*), polysemy networks (chains, not
-just binary colexification), suppletion in basic vocabulary, semantic shift tied to sound
-change, and loanword strata / register.
+suppletive root, English *eleven/twelve*, reused compositionally in larger numbers), and
+**suppletion in basic vocabulary** (a few high-frequency words may roll a wholly irregular
+form in one inflectional cell — *go/went*, *person/people*, *I/me* — coined as an unrelated
+root and used verbatim there, only where the language actually marks that cell; the gloss
+still records the analysis, e.g. *go.1SG.PAST*). Still to add: suppletive decades and
+sub-bases (French *quatre-vingts*), polysemy networks (chains, not just binary
+colexification), semantic shift tied to sound change, and loanword strata / register.
 
 ### Deferred (Stage 6 "advanced" backlog)
 

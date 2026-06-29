@@ -370,6 +370,35 @@ def test_class_bound_alternation_can_be_generated():
     assert found, "no seed organically rolled a class-bound stem alternation"
 
 
+def test_suppletive_stem_replaces_the_whole_word_for_its_cell():
+    # Full-form suppletion (go/went): the past cell yields a wholly irregular word, no affix;
+    # other cells inflect regularly even with the suppletion table present.
+    TENSE = CATEGORIES["tense"]
+    par = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (TENSE,))
+    par.agglutinative_affixes[("tense", "past")] = Affix(
+        (data.consonant("d"),), Position.SUFFIX, FeatureBundle.of(tense="past"), "PST"
+    )
+    root = segs("g o")
+    went = tuple(segs("w e n t"))
+    sup = ((("tense", "past"), went),)
+    assert ipa(par.inflect(root, FeatureBundle.of(tense="pres"))) == "go"     # base, no affix
+    assert ipa(par.inflect(root, FeatureBundle.of(tense="past"))) == "god"    # regular past
+    # with the table: past is suppletive (the stored form verbatim), present is still regular
+    assert ipa(par.inflect(root, FeatureBundle.of(tense="past"), suppletive_stems=sup)) == "went"
+    assert ipa(par.inflect(root, FeatureBundle.of(tense="pres"), suppletive_stems=sup)) == "go"
+
+
+def test_suppletion_is_inert_when_the_marked_value_does_not_match():
+    # a suppletion keyed to past never fires on a future-tense cell
+    TENSE = CATEGORIES["tense"]
+    par = Paradigm(WORD_CLASSES["verb"], Typology.AGGLUTINATIVE, (TENSE,))
+    par.agglutinative_affixes[("tense", "fut")] = Affix(
+        (data.consonant("s"),), Position.SUFFIX, FeatureBundle.of(tense="fut"), "FUT"
+    )
+    sup = ((("tense", "past"), tuple(segs("w e n t"))),)
+    assert ipa(par.inflect(segs("g o"), FeatureBundle.of(tense="fut"), suppletive_stems=sup)) == "gos"
+
+
 def test_generated_stem_alternation_is_reachable():
     # Some seed organically rolls stem allomorphy on at least one paradigm.
     found = False

@@ -11,6 +11,7 @@ The passes run in order so that later ones can reuse the forms minted by earlier
 from __future__ import annotations
 
 import random
+from dataclasses import replace
 
 from conlang.phonology.phonotactics import Phonotactics
 from conlang.phonology.wordgen import WordGenerator, Romanizer
@@ -166,6 +167,19 @@ def build_lexicon(
                 concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
             )
 
+    # 5. Suppletion: a few frequent words get a wholly irregular form in one inflectional cell
+    # (go/went, person/people), coined as a fresh unrelated root. Rolled per language and only
+    # where the language actually marks that category+value, so there's a cell to suppletivize.
+    for gloss, wc, cat, val, prob in SUPPLETIONS:
+        entry = lex.entries.get(gloss)
+        if entry is None or not _marks_value(morphology, wc, cat, val):
+            continue
+        if rng.random() < prob:
+            form, _roman = coin(BY_GLOSS[gloss].basicness)
+            lex.entries[gloss] = replace(
+                entry, suppletive_stems=(*entry.suppletive_stems, ((cat, val), form))
+            )
+
     return lex
 
 
@@ -184,6 +198,32 @@ def _merge_kin(lex: Lexicon, source: str, target: str, note: str) -> None:
 # Lexical gender values and their rough prevalence (masculine the default/most common).
 _GENDERS = ("masc", "fem", "neut")
 _GENDER_WEIGHTS = (0.45, 0.35, 0.20)
+
+
+# High-frequency concepts that cross-linguistically tend to have an irregular (suppletive)
+# form in one inflectional cell, with the per-language probability of that suppletion:
+# (concept gloss, word class, category, value, probability). Applied only where the language
+# marks that category+value, so there is a real cell to fill with the irregular stem.
+SUPPLETIONS = (
+    ("go", "verb", "tense", "past", 0.40),     # go / went
+    ("person", "noun", "number", "pl", 0.35),  # person / people
+    # The marked core-case form of the 1sg pronoun: the accusative "me" (object) under
+    # nominative-accusative alignment, or the marked agent form under ergative alignment —
+    # the engine reuses one marked case ("acc") for whichever role its alignment singles out.
+    ("I", "noun", "case", "acc", 0.30),
+)
+
+
+def _marks_value(morphology, word_class: str, category: str, value: str) -> bool:
+    """True if this language's *word_class* paradigm marks *category* and that category has
+    *value* — i.e. there is an inflectional cell a suppletive form could fill."""
+    if morphology is None:
+        return False
+    par = morphology.paradigms.get(word_class)
+    if par is None:
+        return False
+    cat = next((c for c in par.marked if c.name == category), None)
+    return cat is not None and value in cat.values
 
 
 def _marks_clusivity(morphology) -> bool:

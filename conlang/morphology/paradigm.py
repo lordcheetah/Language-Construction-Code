@@ -152,13 +152,20 @@ class Paradigm:
         root: Sequence[Segment],
         bundle: FeatureBundle,
         inflection_class: str | None = None,
+        suppletive_stems: "tuple" = (),
     ) -> list[Segment]:
         """Inflect *root* for *bundle* using *inflection_class* (default class if None).
 
-        Missing marked categories default to their base value.
+        Missing marked categories default to their base value. ``suppletive_stems`` (pairs of
+        ``((category, value), form)``) overrides the whole word for a matching marked cell —
+        true suppletion (go/went), returned verbatim with no affixation.
         """
         inflection_class = inflection_class or DEFAULT_CLASS  # normalize once: affix selection
         full = self._complete(bundle)                         # and class-binding agree on it
+        if suppletive_stems:
+            suppletive = self._suppletive_form(full, suppletive_stems)
+            if suppletive is not None:
+                return list(suppletive)  # full-form suppletion: the stored form *is* the word
         agglutinative, fusional = self._affixes(inflection_class)
         if self.typology is Typology.FUSIONAL:
             affix = fusional.get(full)
@@ -186,6 +193,23 @@ class Paradigm:
         return self.stem_alternation.stem(
             root, full, self.marked, following, inflection_class
         )
+
+    def _suppletive_form(self, full: FeatureBundle, suppletive_stems) -> "list | None":
+        """A stored suppletive form for *full*, or None. Full-form suppletion: a single marked
+        cell (a non-base value) maps to a complete irregular word that replaces root + affixes.
+        Matches in marked-category order, so the result is deterministic if several could fire.
+
+        Simplification: the stored form is invariant for every *other* category — a suppletive
+        plural is the same across cases, a suppletive past across persons. That matches totally
+        suppletive items (English went/people) but not stem-suppletion that still takes regular
+        affixes (Latin fui/fuisti, Russian ljudi/ljudej), which is out of scope here.
+        """
+        table = dict(suppletive_stems)
+        for cat in self.marked:
+            value = full.get(cat.name)
+            if value is not None and value != cat.base and (cat.name, value) in table:
+                return list(table[(cat.name, value)])
+        return None
 
     def _collect_affixes(self, full: FeatureBundle, affixes: dict):
         """The (prefixes, suffixes) realizing *full*, inner-to-outer (stem-adjacent first)."""

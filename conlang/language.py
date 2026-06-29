@@ -66,7 +66,8 @@ from conlang.writing.system import WritingSystem
 # v27: syntax rolls a suffixed-definite-article parameter (another shared-RNG draw before lexicon/writing).
 # v28: a clusivity-marking language coins a separate inclusive 'we' pronoun (extra lexicon RNG draw).
 # v29: a multi-class language may make a stem alternation class-bound (extra morphology RNG draw).
-GENERATOR_VERSION = 29
+# v30: frequent words may roll a suppletive stem (go/went) — extra lexicon RNG draws before writing.
+GENERATOR_VERSION = 30
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -151,7 +152,8 @@ class Language:
             raise ValueError(
                 f"{gloss!r} is a {entry.concept.pos}, but a {expect_pos} is required here"
             )
-        return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class, entry.gender)
+        return Lexeme(entry.form, entry.concept.pos, gloss, entry.inflection_class,
+                      entry.gender, entry.suppletive_stems)
 
     def _subject_lexeme(self, gloss: str, clusivity: str | None) -> Lexeme:
         """The subject's lexeme, choosing the separate inclusive 'we' when the subject is an
@@ -166,7 +168,8 @@ class Language:
         if gloss == "we" and clusivity == "inclusive":
             incl = self.lexicon.get("we (incl)")
             if incl is not None:
-                return Lexeme(incl.form, "noun", "we", incl.inflection_class, incl.gender)
+                return Lexeme(incl.form, "noun", "we", incl.inflection_class, incl.gender,
+                              incl.suppletive_stems)
         return self._lexeme(gloss, expect_pos="noun")
 
     def make_sentence(

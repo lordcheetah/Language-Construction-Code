@@ -31,6 +31,9 @@ class Lexeme:
     gloss: str
     inflection_class: str | None = None  # which declension/conjugation this word takes
     gender: str | None = None            # a noun's lexical gender (for agreement), if any
+    # Irregular suppletive stems carried from the lexicon: ((category, value), form) pairs used
+    # verbatim for a matching cell (go/went). Empty for regular words. See LexicalEntry.
+    suppletive_stems: tuple[tuple[tuple[str, str], tuple[Segment, ...]], ...] = ()
 
     @property
     def ipa(self) -> str:

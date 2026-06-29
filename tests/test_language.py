@@ -243,6 +243,75 @@ def test_no_separate_inclusive_we_without_clusivity():
     assert lang.lexicon.get("we (incl)") is None
 
 
+def test_suppletion_surfaces_an_irregular_form_in_one_cell():
+    # find a language that rolled a suppletive PAST of "go" (a tense-marking verb), then check
+    # the past surfaces the unrelated suppletive stem while the present is regular.
+    for seed in range(200):
+        lang = Language.generate(seed)
+        go = lang.lexicon.get("go")
+        if go is not None and any(k == ("tense", "past") for k, _ in go.suppletive_stems):
+            break
+    else:
+        raise AssertionError("no seed rolled a suppletive past of 'go'")
+    sup_ipa = next("".join(s.ipa for s in form)
+                   for k, form in go.suppletive_stems if k == ("tense", "past"))
+    surf = lambda s: next(w for w in s.words if w.gloss.startswith("go"))
+    pres = surf(lang.make_sentence("I", "go", tense="pres"))
+    past = surf(lang.make_sentence("I", "go", tense="past"))
+    assert past.ipa == sup_ipa          # the past is the verbatim suppletive form
+    assert past.ipa != pres.ipa         # ...and unrelated to the regular present
+    assert "PAST" in past.gloss         # the gloss still records the analysis (go...PAST)
+
+
+def test_suppletion_needs_the_language_to_mark_the_cell():
+    # a verb that doesn't mark tense at all can't carry a suppletive past of "go"
+    for seed in range(200):
+        lang = Language.generate(seed)
+        verb = lang.morphology.paradigms.get("verb")
+        if verb is not None and not any(c.name == "tense" for c in verb.marked):
+            go = lang.lexicon.get("go")
+            assert go is None or not any(k == ("tense", "past") for k, _ in go.suppletive_stems)
+            return
+    # if every seed marked tense, the guard is vacuous — not a failure of the feature
+
+
+def test_suppletive_plural_noun_surfaces_its_irregular_form():
+    for seed in range(200):
+        lang = Language.generate(seed)
+        person = lang.lexicon.get("person")
+        if person is not None and any(k == ("number", "pl") for k, _ in person.suppletive_stems):
+            break
+    else:
+        raise AssertionError("no seed rolled a suppletive plural of 'person'")
+    sup_ipa = next("".join(s.ipa for s in form)
+                   for k, form in person.suppletive_stems if k == ("number", "pl"))
+    word = lambda s: next(w for w in s.words if w.gloss.startswith("person"))
+    sg = word(lang.make_sentence("person", "run", subject_number="sg"))
+    pl = word(lang.make_sentence("person", "run", subject_number="pl"))
+    assert pl.ipa == sup_ipa and pl.ipa != sg.ipa  # the plural is the suppletive 'people'
+
+
+def test_suppletive_accusative_pronoun_surfaces_as_object():
+    # under nominative-accusative alignment (and no DOM, so the object is overtly accusative),
+    # a transitive object "I" gets the suppletive accusative form — English "me".
+    from conlang.syntax.parameters import Alignment
+    for seed in range(400):
+        lang = Language.generate(seed)
+        if (lang.syntax.alignment is not Alignment.NOMINATIVE_ACCUSATIVE
+                or lang.syntax.differential_object_marking):
+            continue
+        me = lang.lexicon.get("I")
+        if me is not None and any(k == ("case", "acc") for k, _ in me.suppletive_stems):
+            break
+    else:
+        raise AssertionError("no nom-acc, non-DOM seed rolled a suppletive accusative of 'I'")
+    sup_ipa = next("".join(s.ipa for s in form)
+                   for k, form in me.suppletive_stems if k == ("case", "acc"))
+    s = lang.make_sentence("woman", "see", "I")  # "the woman sees me"
+    obj = next(w for w in s.words if w.gloss.startswith("I"))
+    assert obj.ipa == sup_ipa
+
+
 def test_make_sentence_rejects_unknown_gloss():
     lang = Language.generate(1)
     try:

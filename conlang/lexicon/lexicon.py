@@ -31,6 +31,10 @@ class LexicalEntry:
     note: str = ""  # e.g. "= tree", "from hunt (AGENT)", "water+fall"
     inflection_class: str = "1"  # which declension/conjugation this word belongs to
     gender: str | None = None    # a noun's lexical gender, if the language marks gender
+    # Irregular suppletive stems: a frequent word with a wholly unrelated form in some cell
+    # (go/went, person/people). Pairs of ((category, value), form); inflection uses the stored
+    # form verbatim for any bundle carrying that marked value, instead of root + affix.
+    suppletive_stems: tuple[tuple[tuple[str, str], tuple[Segment, ...]], ...] = ()
 
     @property
     def ipa(self) -> str:
