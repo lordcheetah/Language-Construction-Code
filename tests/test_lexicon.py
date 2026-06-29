@@ -132,6 +132,75 @@ def test_expanded_inventory_has_new_fields_and_concepts():
         assert gloss in BY_GLOSS
 
 
+# --- Loanword stratum ---------------------------------------------------------------
+def test_a_loanword_stratum_can_be_generated():
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        loans = lex.of_etymology(Etymology.LOANWORD)
+        if loans:
+            # loans come only from the borrowable cultural/abstract fields
+            assert all(e.concept.field in ("society", "artifact", "abstract") for e in loans)
+            return
+    raise AssertionError("no loanword stratum in 40 seeds (unexpected)")
+
+
+def test_loanwords_use_only_writable_native_phonemes():
+    # the donor shares this language's phonemes (only its phonotactics differ), so every loan
+    # stays writable in the native script — no segment falls outside the inventory
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        loans = lex.of_etymology(Etymology.LOANWORD)
+        if loans:
+            native = {s.ipa for s in phono.inventory.segments}
+            for e in loans:
+                assert all(s.ipa in native for s in e.form)
+            return
+    raise AssertionError("no loanword stratum in 40 seeds (unexpected)")
+
+
+def test_loanword_stratum_is_a_per_language_roll():
+    # the stratum is rolled per language (~0.40), so some languages have none and some have one
+    have, lack = False, False
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        if lex.of_etymology(Etymology.LOANWORD):
+            have = True
+        else:
+            lack = True
+    assert have and lack
+
+
+def test_borrowable_concepts_stay_native_without_a_stratum():
+    # the dual of the short-circuit: in a language with no loan stratum, the cultural/abstract
+    # concepts are ordinary native roots, not loanwords
+    for seed in range(40):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        if not lex.of_etymology(Etymology.LOANWORD):
+            # use borrowable concepts that are not colexification targets (so ROOT, not merged)
+            for gloss in ("war", "house", "gift", "work", "thing"):
+                assert lex.get(gloss).etymology is Etymology.ROOT
+            return
+    raise AssertionError("every seed had a loan stratum (unexpected)")
+
+
+def test_loan_bearing_language_is_reproducible():
+    # the donor phonology and the borrow rolls must be fully deterministic for a seed
+    def build(seed):
+        phono, rng = _phonotactics(seed)
+        return build_lexicon(phono, rng)
+    for seed in range(40):
+        if build(seed).of_etymology(Etymology.LOANWORD):
+            a, b = build(seed), build(seed)
+            assert {g: (e.ipa, e.etymology) for g, e in a.entries.items()} == \
+                   {g: (e.ipa, e.etymology) for g, e in b.entries.items()}
+            return
+    raise AssertionError("no loan-bearing seed in range (unexpected)")
+
+
 # --- Lexical gender & the class<->gender link ---------------------------------------
 def _gendered_two_class_noun_system() -> MorphologySystem:
     noun = Paradigm(WORD_CLASSES["noun"], Typology.AGGLUTINATIVE, (CATEGORIES["gender"],))

@@ -98,9 +98,15 @@ class Phonotactics:
 
     @classmethod
     def random(
-        cls, inventory: Inventory, rng: random.Random | None = None
+        cls, inventory: Inventory, rng: random.Random | None = None,
+        *, prefer_complex: bool = False,
     ) -> "Phonotactics":
-        """Roll a plausible phonotactic profile (simple → complex syllable structure)."""
+        """Roll a plausible phonotactic profile (simple → complex syllable structure).
+
+        ``prefer_complex`` skews toward the clustered, coda-heavy tiers (never pure CV) — used
+        for a loanword donor, so borrowings read as foreign (more complex than a typical native
+        profile) rather than occasionally simpler.
+        """
         rng = rng or random.Random()
         # Complexity tiers, weighted toward the cross-linguistically common middle. Each
         # tier carries per-template weights so simpler shapes dominate within a profile
@@ -113,8 +119,11 @@ class Phonotactics:
             ((["(C)(C)V(C)", "(C)V"], [0.4, 0.6]), 0.15),
             ((["(C)(C)V(C)(C)", "(C)(C)V(C)"], [0.3, 0.7]), 0.05),
         ]
+        tier_weights = (
+            [0.0, 0.10, 0.30, 0.35, 0.25] if prefer_complex else [p[1] for p in profiles]
+        )
         (templates, weights) = rng.choices(
-            [p[0] for p in profiles], weights=[p[1] for p in profiles], k=1
+            [p[0] for p in profiles], weights=tier_weights, k=1
         )[0]
         return cls.from_notation(inventory, templates, weights)
 

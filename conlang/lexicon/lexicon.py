@@ -20,6 +20,7 @@ class Etymology(Enum):
     COLEXIFIED = "colexified"  # shares another concept's word
     DERIVED = "derived"        # built from another word with a derivational affix
     COMPOUND = "compound"      # built from two roots joined
+    LOANWORD = "loanword"      # borrowed from a donor language (its own phonology)
 
 
 @dataclass(frozen=True)

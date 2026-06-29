@@ -180,9 +180,12 @@ suppletive root, English *eleven/twelve*, reused compositionally in larger numbe
 **suppletion in basic vocabulary** (a few high-frequency words may roll a wholly irregular
 form in one inflectional cell — *go/went*, *person/people*, *I/me* — coined as an unrelated
 root and used verbatim there, only where the language actually marks that cell; the gloss
-still records the analysis, e.g. *go.1SG.PAST*). Still to add: suppletive decades and
-sub-bases (French *quatre-vingts*), semantic shift tied to sound change, and loanword strata /
-register (the expanded *society*/*artifact* fields are the groundwork for the latter).
+still records the analysis, e.g. *go.1SG.PAST*), and a **loanword stratum** (a language may
+borrow its cultural/abstract vocabulary — the *society*/*artifact*/*abstract* fields — from a
+donor language that shares its phonemes but rolls its own phonotactics, so the loans are
+writable in the native script yet carry a foreign syllable shape and are marked as borrowed,
+like Latinate words in English). Still to add: suppletive decades and sub-bases (French
+*quatre-vingts*), and semantic shift tied to sound change.
 
 ### Deferred (Stage 6 "advanced" backlog)
 

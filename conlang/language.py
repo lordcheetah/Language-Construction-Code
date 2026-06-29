@@ -69,7 +69,8 @@ from conlang.writing.system import WritingSystem
 # v30: frequent words may roll a suppletive stem (go/went) — extra lexicon RNG draws before writing.
 # v31: syntax may roll subject-aux-inversion questions + an AUX particle is coined (shifts lexicon RNG).
 # v32: the concept inventory was expanded (new fields + colexification/derivation entries), changing the lexicon.
-GENERATOR_VERSION = 32
+# v33: a language may roll a loanword stratum (donor phonology + borrowed cultural vocab), shifting lexicon RNG.
+GENERATOR_VERSION = 33
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

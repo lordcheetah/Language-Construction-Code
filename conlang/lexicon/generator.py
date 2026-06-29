@@ -26,6 +26,14 @@ from conlang.lexicon.concepts import (
 from conlang.lexicon.lexicon import Lexicon, LexicalEntry, Etymology
 
 
+# A language has a borrowed stratum with this probability; within it, each culturally-borrowable
+# concept is a loanword with probability _BORROW_PROB. The borrowable fields are the cultural and
+# abstract vocabulary that is, cross-linguistically, the most readily borrowed.
+_LOAN_STRATUM_PROB = 0.40
+_BORROW_PROB = 0.50
+_BORROWABLE_FIELDS = frozenset({"society", "artifact", "abstract"})
+
+
 def _max_syllables(basicness: float) -> int:
     """Zipf's law of abbreviation: basic, frequent concepts get shorter words.
 
@@ -54,21 +62,34 @@ def build_lexicon(
     rng = rng or random.Random()
     romanizer = romanizer or Romanizer()
     gen = WordGenerator(phonotactics, romanizer)
+    # A loanword stratum: many languages borrow a layer of cultural/abstract vocabulary from a
+    # donor language. The donor shares this language's *phonemes* (so the loans stay writable in
+    # its script) but has its own rolled *phonotactics*, giving loans a recognizably foreign
+    # syllable shape (clusters/codas the native words may lack). Loans are coined from this donor
+    # word generator. No loanword phonological *adaptation* is modelled — loans keep their
+    # foreign shape rather than being nativised.
+    loan_gen = None
+    if rng.random() < _LOAN_STRATUM_PROB:
+        # prefer_complex skews the donor toward clustered/coda-heavy syllables, so loans read
+        # as foreign (more complex than a typical native profile), never simpler.
+        donor_phonotactics = Phonotactics.random(phonotactics.inventory, rng, prefer_complex=True)
+        loan_gen = WordGenerator(donor_phonotactics, romanizer)
     # Headwords must be distinct in *spelling* as well as IPA: a dictionary with two
     # entries both spelled "he" is unusable, even if their IPA differs.
     used_ipa: set[str] = set()
     used_roman: set[str] = set()
 
-    def coin(basicness: float):
+    def coin(basicness: float, generator: WordGenerator | None = None):
+        g = generator or gen
         base_cap = _max_syllables(basicness)
-        word = gen.word(rng, min_syllables=1, max_syllables=base_cap)
+        word = g.word(rng, min_syllables=1, max_syllables=base_cap)
         for attempt in range(120):
             if word.ipa not in used_ipa and word.roman not in used_roman:
                 break
             # Grow the length ceiling if the short space is exhausted, so we don't loop
             # forever or silently emit a duplicate headword.
             cap = base_cap + attempt // 40
-            word = gen.word(rng, min_syllables=1, max_syllables=cap)
+            word = g.word(rng, min_syllables=1, max_syllables=cap)
         used_ipa.add(word.ipa)
         used_roman.add(word.roman)
         form = tuple(s for syl in word.syllables for s in syl)
@@ -84,14 +105,20 @@ def build_lexicon(
     def feat(pos: str) -> tuple[str, str | None]:
         return _assign_gender_and_class(rng, pos, morphology, gender_classes)
 
-    # 1. Primary roots.
+    # 1. Primary roots (a borrowable cultural/abstract concept may instead be a loanword,
+    # coined from the donor generator and marked as such).
     for concept in CONCEPTS:
         if concept.gloss in product_glosses:
             continue
-        form, roman = coin(concept.basicness)
+        borrowed = (loan_gen is not None and concept.field in _BORROWABLE_FIELDS
+                    and rng.random() < _BORROW_PROB)
+        form, roman = coin(concept.basicness, loan_gen if borrowed else None)
         klass, gender = feat(concept.pos)
         lex.entries[concept.gloss] = LexicalEntry(
-            concept, form, roman, Etymology.ROOT, inflection_class=klass, gender=gender
+            concept, form, roman,
+            Etymology.LOANWORD if borrowed else Etymology.ROOT,
+            note="borrowed" if borrowed else "",
+            inflection_class=klass, gender=gender,
         )
 
     # 1b. A clusivity-marking language has a separate inclusive 'we' pronoun, distinct from the
