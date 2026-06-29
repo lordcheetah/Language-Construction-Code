@@ -1091,6 +1091,75 @@ def test_suffixed_definite_object_orders_case_inside_the_article():
     assert obj.ipa == "pondo" and obj.gloss == "bird.ACC-DEF"
 
 
+# --- Analytic (isolating) morphology: marked categories as free particles -----------
+TENSE = CATEGORIES["tense"]
+
+
+def _isolating_system(position=Position.SUFFIX) -> MorphologySystem:
+    noun = Paradigm(WORD_CLASSES["noun"], Typology.ISOLATING, (NUMBER, CASE))
+    noun.agglutinative_affixes[("number", "pl")] = Affix(
+        (data.consonant("s"),), position, FeatureBundle.of(number="pl"), "PL")
+    noun.agglutinative_affixes[("case", "acc")] = Affix(
+        (data.consonant("n"),), position, FeatureBundle.of(case="acc"), "ACC")
+    verb = Paradigm(WORD_CLASSES["verb"], Typology.ISOLATING, (TENSE,))
+    verb.agglutinative_affixes[("tense", "past")] = Affix(  # gloss mirrors the generator (value.upper())
+        (data.vowel("u"),), position, FeatureBundle.of(tense="past"), "PAST")
+    return MorphologySystem(Typology.ISOLATING, {"noun": noun, "verb": verb})
+
+
+def test_isolating_renders_marked_categories_as_separate_particles():
+    lin = Linearizer(_params(WordOrder.SVO), _isolating_system())  # SUFFIX -> postposed particles
+    out = lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, number="pl")))
+    text = [w.ipa for w in out.words]
+    gloss = [w.gloss for w in out.words]
+    assert "po" in text                  # the object noun stays a bare stem (no bound -s/-n)
+    assert "s" in text and "n" in text   # PL and ACC stand alone as their own words
+    assert "PL" in gloss and "ACC" in gloss and "bird" in gloss
+
+
+def test_isolating_verb_tense_is_a_particle_not_an_affix():
+    lin = Linearizer(_params(WordOrder.SVO), _isolating_system())
+    past = lin.linearize(Clause(NounPhrase(WOMAN), SEE, tense="past"))
+    gl = [w.gloss for w in past.words]
+    assert "see" in gl and "PAST" in gl  # separate stem + tense words, not a fused 'see.PAST'
+    assert "ta" in [w.ipa for w in past.words]
+    assert not any("." in g for g in gl)  # the stem isn't double-marked (no 'see.PAST' token)
+
+
+def test_isolating_suffix_particles_keep_inner_to_outer_order():
+    # number is the inner noun category, case the outer; as trailing particles the order is
+    # stem, then the inner (PL), then the outer (ACC) — matching the bound affix stack.
+    lin = Linearizer(_params(WordOrder.SVO), _isolating_system())  # SUFFIX position
+    out = lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, number="pl")))
+    text = [w.ipa for w in out.words]
+    assert text.index("po") < text.index("s") < text.index("n")  # bird < PL < ACC
+
+
+def test_isolating_uses_more_words_than_the_bound_equivalent():
+    make = lambda: Clause(NounPhrase(WOMAN, number="pl"), SEE, NounPhrase(BIRD, number="pl"))
+    iso = Linearizer(_params(WordOrder.SVO), _isolating_system()).linearize(make())
+    agg = Linearizer(_params(WordOrder.SVO), _system()).linearize(make())
+    assert len(iso.words) > len(agg.words)  # particles are extra tokens the affixes weren't
+
+
+def test_isolating_prefix_particles_precede_the_stem():
+    lin = Linearizer(_params(WordOrder.SVO), _isolating_system(Position.PREFIX))
+    text = [w.ipa for w in
+            lin.linearize(Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD, number="pl"))).words]
+    assert text.index("s") < text.index("po") and text.index("n") < text.index("po")
+
+
+def test_isolating_suppletion_is_one_word_not_stem_plus_particle():
+    lin = Linearizer(_params(WordOrder.SVO), _isolating_system())
+    went = tuple(data.BY_IPA[s] for s in "n o".split())
+    go = Lexeme(tuple(data.BY_IPA[s] for s in "g o".split()), "verb", "go",
+                suppletive_stems=((("tense", "past"), went),))
+    past = lin.linearize(Clause(NounPhrase(WOMAN), go, tense="past"))
+    text = [w.ipa for w in past.words]
+    assert "no" in text       # the suppletive form is one whole word...
+    assert "u" not in text    # ...not the bare stem plus a PST particle
+
+
 # --- Stem allomorphy flows through to the surface -----------------------------------
 def test_stem_allomorphy_surfaces_in_a_linearized_sentence():
     from conlang.morphology.paradigm import StemAlternation

@@ -74,7 +74,11 @@ sound-change engine is now feature-complete.
 
 ### Deferred (Stage 3 "advanced" backlog)
 
-Morphology handles inflection (agglutinative + fusional), basic class-changing
+Morphology handles inflection (agglutinative + fusional + **isolating**, where an isolating
+language realizes each marked category as a free-standing grammatical *particle* word —
+Chinese 了, Vietnamese đã — rather than a bound affix, so "women saw birds" comes out as
+*woman PL ... bird PL ... see PST*; the same rolled marker forms are reused, just unbound,
+and suppletion still overrides as one whole word), basic class-changing
 derivation, optional sandhi, **inflection classes** (declensions/conjugations: several
 affix sets per word class, the extras sharing a backbone with the base via partial
 syncretism; each word is assigned a class), and — added since the first pass — **stem
@@ -98,8 +102,7 @@ a 1st-person inclusive ("you and I") vs exclusive ("they and I") distinction, gl
 A language that marks clusivity also gets a **separate inclusive "we" pronoun** — a distinct
 lexical root for inclusive *we*, with the plain *we* serving as the exclusive; an inclusive
 subject surfaces the distinct form and the pronoun itself is glossed `we.INCL`/`we.EXCL`
-(currently offered in subject position only). Still to add: true analytic-particle isolating
-morphology. **Derivation stacking**
+(currently offered in subject position only). **Derivation stacking**
 is supported — a word can be built by two derivational steps (e.g. *stone* → *stony* [HAVING] →
 *petrify* [BECOME], carrying both affixes when the language has them). A gender-marking language
 now assigns each noun a **lexical gender** and ties its inflection

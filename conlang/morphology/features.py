@@ -21,9 +21,9 @@ from enum import Enum
 class Typology(Enum):
     """Morphological type — how many features one affix expresses.
 
-    - ISOLATING: few categories marked. (A fuller model would express them with free
-      grammatical words/particles rather than affixes; the current engine still affixes
-      the few marked categories — true analytic particles are on the backlog.)
+    - ISOLATING: few categories marked, and each is realized by a free grammatical
+      *particle* word rather than a bound affix (the linearizer renders an isolating
+      language's markers unbound — Chinese 了, Vietnamese đã).
     - AGGLUTINATIVE: one affix per category value, stacked transparently.
     - FUSIONAL: a single affix expresses a whole bundle of categories at once.
     """

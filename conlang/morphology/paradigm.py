@@ -211,6 +211,33 @@ class Paradigm:
                 return list(table[(cat.name, value)])
         return None
 
+    def suppletive_form(
+        self, bundle: FeatureBundle, suppletive_stems, inflection_class: str | None = None
+    ) -> "list | None":
+        """The full-form suppletive word for *bundle* (go/went), or None if no cell matches.
+        Exposes the same override :meth:`inflect` applies, for the isolating render path."""
+        if not suppletive_stems:
+            return None
+        return self._suppletive_form(self._complete(bundle), suppletive_stems)
+
+    def analytic_particles(
+        self, bundle: FeatureBundle, inflection_class: str | None = None
+    ) -> tuple[list, list]:
+        """For an isolating language: the overt marked categories as free particle Affixes, to
+        be rendered as separate words rather than bound to the stem. Returns ``(prefixes,
+        suffixes)`` in inner-to-outer order (as :meth:`_collect_affixes` does); the stem itself
+        is left bare. Reuses the same affix forms/glosses the bound paradigm would attach —
+        isolating morphology realizes them as words, not suffixes (Chinese 了, Vietnamese đã).
+
+        Idealization: *every* marked category becomes a particle, including any case/gender the
+        language happens to mark. Real isolating languages grammaticalize TAM, number and
+        definiteness analytically but rarely case and almost never gender; treating those as
+        particles too is a simplification (the marking itself comes from the generator).
+        """
+        full = self._complete(bundle)
+        agglutinative, _fusional = self._affixes(inflection_class)
+        return self._collect_affixes(full, agglutinative)
+
     def _collect_affixes(self, full: FeatureBundle, affixes: dict):
         """The (prefixes, suffixes) realizing *full*, inner-to-outer (stem-adjacent first)."""
         prefixes: list[Affix] = []

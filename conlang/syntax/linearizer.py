@@ -27,7 +27,7 @@ from typing import Sequence
 
 from conlang.phonology.features import Segment
 from conlang.phonology.wordgen import Romanizer
-from conlang.morphology.features import FeatureBundle
+from conlang.morphology.features import FeatureBundle, Typology
 from conlang.morphology.generator import MorphologySystem
 from conlang.syntax.parameters import (
     SyntaxParameters, Side, Adposition, Alignment, Negation, PolarQuestion,
@@ -278,6 +278,10 @@ class Linearizer:
         paradigm = self.morphology.paradigms.get(word_class)
         return {c.name for c in paradigm.marked} if paradigm else set()
 
+    def _is_isolating(self, word_class: str) -> bool:
+        paradigm = self.morphology.paradigms.get(word_class)
+        return paradigm is not None and paradigm.typology is Typology.ISOLATING
+
     def _number_for(self, word_class: str, number: str) -> str:
         """Coerce a requested number to one the word class actually has, so a value the
         language lacks (e.g. ``dual`` in a sg/pl language) degrades to the base consistently
@@ -306,8 +310,12 @@ class Linearizer:
         # but not the Romanian/Bulgarian pattern where a prenominal adjective hosts it instead
         # (frumoas-a carte), nor the Scandinavian double definiteness with adjectives.
         article = self._article(np.definiteness)
+        # An isolating language realizes everything (the article included) as free particles, so
+        # it never binds a suffixed enclitic — that would glom the article onto a grammatical
+        # particle. Such a language falls back to the free prenominal article instead.
         suffixing = (article is not None and self.params.suffixed_article
-                     and np.definiteness == "def")
+                     and np.definiteness == "def"
+                     and not self._is_isolating(np.head.word_class))
         bundle_def = None if article is not None else np.definiteness
         number = self._number_for(np.head.word_class, np.number)
         gender = np.head.gender  # the noun's lexical gender (inflects the noun if it marks gender)
@@ -315,28 +323,32 @@ class Linearizer:
             **_drop_none(case=case, number=number, definiteness=bundle_def, gender=gender)
         )
         marked = self._marked(np.head.word_class)
-        gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def)
         # A 1st-person pronoun in a clusivity-marking language shows its inclusive/exclusive
         # value (a separate 'we' word, or just disambiguating the gloss). The gate is whether
         # the language HAS the contrast (verb marks clusivity), not whether the verb realizes
         # it in this clause — so the tag stays on the pronoun even where verb agreement drops
         # clusivity (ergative-transitive, singular). The pronoun's reference is inherently
         # in/exclusive regardless of agreement, so tagging it there is intentional, not a leak.
+        clus = ""
         if (np.person == "1" and getattr(np, "clusivity", None) in ("inclusive", "exclusive")
                 and "clusivity" in self._marked("verb")):
-            gloss += ".INCL" if np.clusivity == "inclusive" else ".EXCL"
-        noun = self._inflected_word(np.head, noun_bundle, gloss)
+            clus = ".INCL" if np.clusivity == "inclusive" else ".EXCL"
+        lemma_gloss = np.head.gloss + clus  # the stem gloss (clusivity isn't an affix particle)
+        full_gloss = np.head.gloss + _grammatical_tags(marked, number, case, bundle_def) + clus
+        head = self._inflected_tokens(np.head, noun_bundle, lemma_gloss, full_gloss)
         if suffixing:
-            noun = self._enclitic(noun, article)  # hus + et -> huset (one bound word)
+            # bind the enclitic onto the noun (suffixing is gated to non-isolating, so the noun
+            # is a single bound word here, not a stem + particles)
+            head = [*head[:-1], self._enclitic(head[-1], article)]
 
-        tokens: list[GlossedWord] = [noun]
+        tokens: list[GlossedWord] = list(head)
         if np.adjective is not None:
             # Adjectives agree with their head noun in number, gender, and case where marked.
             adj_number = self._number_for(np.adjective.word_class, np.number)
             adj_bundle = FeatureBundle.of(**_drop_none(number=adj_number, case=case, gender=gender))
             adj_marked = self._marked(np.adjective.word_class)
             adj_gloss = np.adjective.gloss + _grammatical_tags(adj_marked, adj_number, case, None)
-            adj = self._inflected_word(np.adjective, adj_bundle, adj_gloss)
+            adj = self._inflected_tokens(np.adjective, adj_bundle, np.adjective.gloss, adj_gloss)
             tokens = _place(self.params.adjective, adj, tokens)
         if np.genitive is not None:
             # The genitive (possessor) is placed *outside* the adjective — the common
@@ -400,19 +412,20 @@ class Linearizer:
 
     def _verb_group(self, clause: Clause) -> list[GlossedWord]:
         """The verb, plus a negative particle when negation isn't marked on the verb."""
-        verb = self._verb(clause)
+        verb = self._verb(clause)  # one bound word, or a stem + particles in an isolating lang
         if not clause.negated or self._verbal_negation(clause):
-            return [verb]  # verbal negation is already in the verb's bundle + gloss
+            return verb  # verbal negation is already in the verb's bundle + gloss
         neg = self._particle("neg", "NEG")
         if neg is None:
-            # Negation can be realized neither on the verb nor as a particle; keep it
-            # visible in the gloss rather than silently dropping it.
-            return [GlossedWord(verb.roman, verb.ipa, verb.gloss + ".NEG")]
+            # Negation can be realized neither on the verb nor as a particle; keep it visible in
+            # the gloss (on the verb's last piece) rather than silently dropping it.
+            last = verb[-1]
+            return [*verb[:-1], GlossedWord(last.roman, last.ipa, last.gloss + ".NEG")]
         if self.params.negation is Negation.PARTICLE_AFTER_VERB:
-            return [verb, neg]
-        return [neg, verb]  # before the verb (also the fallback position)
+            return [*verb, neg]
+        return [neg, *verb]  # before the verb (also the fallback position)
 
-    def _verb(self, clause: Clause) -> GlossedWord:
+    def _verb(self, clause: Clause) -> list[GlossedWord]:
         # Agreement controller: the absolutive argument under ergative alignment (object of
         # a transitive, else subject), otherwise the subject (nominative).
         ergative = clause.is_transitive and self.params.alignment is Alignment.ERGATIVE_ABSOLUTIVE
@@ -447,7 +460,7 @@ class Linearizer:
         gloss = clause.verb.gloss + _verb_tags(
             marked, person, number, clause.tense, mood, polarity, obj_person, obj_number, clusivity
         )
-        return self._inflected_word(clause.verb, bundle, gloss)
+        return self._inflected_tokens(clause.verb, bundle, clause.verb.gloss, gloss)
 
     # --- Sentence-type helpers -------------------------------------------------------
     def _verbal_negation(self, clause: Clause) -> bool:
@@ -477,6 +490,40 @@ class Linearizer:
         return GlossedWord(roman, lexeme.ipa, gloss)
 
     # --- Inflection helper -----------------------------------------------------------
+    def _inflected_tokens(
+        self, lexeme: Lexeme, bundle: FeatureBundle, lemma_gloss: str, full_gloss: str
+    ) -> list[GlossedWord]:
+        """The word(s) realizing *lexeme* inflected for *bundle*.
+
+        A normal (affixing) language yields a single bound word glossed *full_gloss*. An
+        **isolating** language instead yields the bare stem (glossed *lemma_gloss*) flanked by
+        free grammatical *particles* — one per overt marked category — so the categories surface
+        as separate words rather than affixes. The particle order mirrors where the bound affix
+        would sit (outermost prefix leftmost; suffixes after the stem, inner-to-outer).
+        """
+        paradigm = self.morphology.paradigms.get(lexeme.word_class)
+        if paradigm is None or paradigm.typology is not Typology.ISOLATING:
+            return [self._inflected_word(lexeme, bundle, full_gloss)]
+        # Suppletion overrides everything, here too: an irregular form is one whole word (with
+        # the full gloss), not a stem plus particles.
+        suppletive = paradigm.suppletive_form(bundle, lexeme.suppletive_stems, lexeme.inflection_class)
+        if suppletive is not None:
+            return [GlossedWord(self.romanizer.romanize([list(suppletive)]),
+                                "".join(s.ipa for s in suppletive), full_gloss)]
+        prefixes, suffixes = paradigm.analytic_particles(bundle, lexeme.inflection_class)
+        stem = GlossedWord(
+            self.romanizer.romanize([list(lexeme.root)]),
+            "".join(s.ipa for s in lexeme.root), lemma_gloss,
+        )
+        before = [self._affix_word(a) for a in reversed(prefixes)]
+        after = [self._affix_word(a) for a in suffixes]
+        return [*before, stem, *after]
+
+    def _affix_word(self, affix) -> GlossedWord:
+        """Render a grammatical affix as a free-standing particle word (for isolating)."""
+        roman = self.romanizer.romanize([list(affix.form)])
+        return GlossedWord(roman, "".join(s.ipa for s in affix.form), affix.gloss)
+
     def _inflected_word(self, lexeme: Lexeme, bundle: FeatureBundle, gloss: str) -> GlossedWord:
         paradigm = self.morphology.paradigms.get(lexeme.word_class)
         if paradigm is None:
