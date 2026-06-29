@@ -68,7 +68,8 @@ from conlang.writing.system import WritingSystem
 # v29: a multi-class language may make a stem alternation class-bound (extra morphology RNG draw).
 # v30: frequent words may roll a suppletive stem (go/went) — extra lexicon RNG draws before writing.
 # v31: syntax may roll subject-aux-inversion questions + an AUX particle is coined (shifts lexicon RNG).
-GENERATOR_VERSION = 31
+# v32: the concept inventory was expanded (new fields + colexification/derivation entries), changing the lexicon.
+GENERATOR_VERSION = 32
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

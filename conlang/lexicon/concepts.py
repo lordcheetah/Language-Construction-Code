@@ -42,7 +42,8 @@ _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
         ("head", 0.85), ("eye", 0.90), ("ear", 0.80), ("nose", 0.65), ("mouth", 0.80),
         ("tooth", 0.70), ("tongue", 0.65), ("hair", 0.65), ("hand", 0.85), ("arm", 0.70),
         ("foot", 0.80), ("leg", 0.70), ("face", 0.70), ("heart", 0.70), ("blood", 0.80),
-        ("bone", 0.75), ("skin", 0.70),
+        ("bone", 0.75), ("skin", 0.70), ("back", 0.70), ("belly", 0.65), ("neck", 0.60),
+        ("liver", 0.50),
     ]),
     "kinship": ("noun", [
         ("mother", 0.90), ("father", 0.90), ("name", 0.80),
@@ -54,25 +55,47 @@ _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
         ("fire", 0.90), ("stone", 0.85), ("earth", 0.80), ("mountain", 0.70),
         ("river", 0.75), ("tree", 0.85), ("wind", 0.70), ("rain", 0.75), ("wood", 0.60),
         ("bark", 0.50), ("day", 0.70), ("night", 0.70), ("month", 0.40),
+        ("sea", 0.65), ("cloud", 0.60), ("road", 0.65), ("hole", 0.55), ("forest", 0.60),
+        ("leaf", 0.65), ("smoke", 0.50),
     ]),
     "animals": ("noun", [("dog", 0.80), ("bird", 0.80), ("fish", 0.80), ("snake", 0.60)]),
     "food": ("noun", [
         ("meat", 0.75), ("fruit", 0.60), ("egg", 0.60), ("seed", 0.60), ("firewood", 0.40),
     ]),
+    # Cultural/social vocabulary — central to a community and, cross-linguistically, the most
+    # readily *borrowed* stratum (so a natural target for a future loanword feature).
+    "society": ("noun", [
+        ("chief", 0.55), ("spirit", 0.55), ("war", 0.55), ("gift", 0.50), ("story", 0.55),
+        ("work", 0.55), ("word", 0.65), ("god", 0.50),
+    ]),
+    # Made things — also frequently borrowed along with the artifact itself.
+    "artifact": ("noun", [
+        ("house", 0.80), ("door", 0.60), ("knife", 0.60), ("rope", 0.55), ("boat", 0.55),
+        ("field", 0.55),
+    ]),
+    # Abstractions — fertile ground for polysemy and metaphor (way/road, time/day, word/speech).
+    "abstract": ("noun", [
+        ("time", 0.65), ("thing", 0.70), ("place", 0.55), ("dream", 0.55), ("language", 0.55),
+    ]),
     "motion": ("verb", [
         ("go", 0.90), ("come", 0.85), ("walk", 0.80), ("run", 0.75), ("fall", 0.70),
-        ("fly", 0.65), ("swim", 0.60),
+        ("fly", 0.65), ("swim", 0.60), ("turn", 0.60), ("throw", 0.60),
     ]),
     "cognition": ("verb", [
         ("see", 0.90), ("hear", 0.85), ("know", 0.80), ("think", 0.70), ("say", 0.85),
+        ("speak", 0.78), ("want", 0.70),
     ]),
+    "existence": ("verb", [("die", 0.80), ("live", 0.75), ("sleep", 0.75)]),
     "action": ("verb", [
         ("eat", 0.90), ("drink", 0.85), ("give", 0.80), ("take", 0.75), ("make", 0.75),
-        ("hunt", 0.60), ("cook", 0.60),
+        ("hunt", 0.60), ("cook", 0.60), ("hold", 0.70), ("cut", 0.70), ("burn", 0.65),
+        ("kill", 0.65), ("grow", 0.60),
     ]),
     "quality": ("adjective", [
         ("big", 0.85), ("small", 0.85), ("long", 0.75), ("good", 0.85), ("bad", 0.80),
         ("hot", 0.75), ("cold", 0.75), ("new", 0.70), ("old", 0.70), ("full", 0.60),
+        ("wide", 0.55), ("narrow", 0.50), ("short", 0.65), ("heavy", 0.55), ("dark", 0.55),
+        ("dry", 0.55), ("sharp", 0.50), ("many", 0.70),
     ]),
     "color": ("adjective", [
         ("red", 0.70), ("white", 0.75), ("black", 0.75), ("green", 0.60), ("blue", 0.50),
@@ -87,6 +110,7 @@ _RAW: dict[str, tuple[str, list[tuple[str, float]]]] = {
 # a field and part of speech, but they receive their forms from the source words.
 _DERIVED_CONCEPTS = [
     Concept("hunter", "noun", "people", 0.45),
+    Concept("speaker", "noun", "people", 0.40),  # AGENT of "speak"
     Concept("stony", "adjective", "quality", 0.35),
     Concept("puppy", "noun", "animals", 0.35),
     # A *stacked* derivation: petrify = stony + BECOME = (stone + HAVING) + BECOME, so the
@@ -97,6 +121,7 @@ _COMPOUND_CONCEPTS = [
     Concept("waterfall", "noun", "nature", 0.40),
     Concept("blackbird", "noun", "animals", 0.30),
     Concept("nightbird", "noun", "animals", 0.30),
+    Concept("seabird", "noun", "animals", 0.30),
 ]
 
 
@@ -136,7 +161,10 @@ def _check_derivation_order() -> None:
 
 # --- Relational tables --------------------------------------------------------------
 # Colexification: (source, target, probability the language merges them under one word).
-# The source is the more basic concept; the target reuses its form when merged.
+# The source is the more basic concept; the target reuses its form when merged. Entries are
+# applied IN ORDER and rewrite the target's form, so a *chain* (A->B then B->C) yields a
+# polysemy chain: if both links fire, one word covers A, B and C (sun = day = time). List a
+# chained link AFTER the link that feeds it.
 COLEXIFICATION: list[tuple[str, str, float]] = [
     ("tree", "wood", 0.45),
     ("fire", "firewood", 0.50),
@@ -150,6 +178,15 @@ COLEXIFICATION: list[tuple[str, str, float]] = [
     ("hand", "arm", 0.40),
     ("foot", "leg", 0.40),
     ("eye", "face", 0.30),
+    # Polysemy hubs and metaphor (one source, sometimes several senses):
+    ("tongue", "language", 0.50),  # tongue = language (near-universal)
+    ("mouth", "door", 0.25),       # mouth = opening / doorway
+    ("tree", "forest", 0.30),      # tree also -> forest (a second sense beside tree->wood)
+    ("water", "sea", 0.25),        # water also -> sea (beside water->river)
+    ("wind", "spirit", 0.30),      # breath / wind = spirit (Latin spiritus, Greek pneuma)
+    ("word", "story", 0.30),       # word = speech / account
+    # A polysemy CHAIN, applied after sun->day above: if both fire, one word = sun = day = time.
+    ("day", "time", 0.35),
 ]
 
 # Derivation: (base, product, relation, from_pos, to_pos). The relation matches a Stage 3
@@ -157,6 +194,7 @@ COLEXIFICATION: list[tuple[str, str, float]] = [
 # base, otherwise the product is coined as a fresh root.
 DERIVATIONS: list[tuple[str, str, str, str, str]] = [
     ("hunt", "hunter", "AGENT", "verb", "noun"),
+    ("speak", "speaker", "AGENT", "verb", "noun"),
     ("stone", "stony", "HAVING", "noun", "adjective"),
     ("dog", "puppy", "DIMINUTIVE", "noun", "noun"),
     # Antonyms by an opposite-forming affix: the marked pole of a polar pair derived from
@@ -165,6 +203,8 @@ DERIVATIONS: list[tuple[str, str, str, str, str]] = [
     ("good", "bad", "ANTONYM", "adjective", "adjective"),
     ("big", "small", "ANTONYM", "adjective", "adjective"),
     ("hot", "cold", "ANTONYM", "adjective", "adjective"),
+    ("long", "short", "ANTONYM", "adjective", "adjective"),
+    ("wide", "narrow", "ANTONYM", "adjective", "adjective"),
     # Derivation stacking: petrify is derived from *stony* (itself derived from stone), so a
     # language with both HAVING and BECOME builds it from two derivational affixes. Must come
     # after stone->stony so its base exists when this is processed.
@@ -178,4 +218,5 @@ COMPOUNDS: list[tuple[str, tuple[str, str]]] = [
     ("waterfall", ("water", "fall")),
     ("blackbird", ("black", "bird")),
     ("nightbird", ("night", "bird")),
+    ("seabird", ("sea", "bird")),
 ]

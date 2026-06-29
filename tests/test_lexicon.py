@@ -99,11 +99,37 @@ def test_colexified_entries_share_their_source_form():
         lex = build_lexicon(phono, rng)
         colex = lex.of_etymology(Etymology.COLEXIFIED)
         for entry in colex:
-            source_gloss = entry.note.lstrip("= ").strip()
+            # the note is "= <gloss>", optionally with a trailing parenthetical (kinship
+            # merges add "(sex-neutral sibling)" etc.) — the source gloss is the first token
+            source_gloss = entry.note.lstrip("= ").split()[0]
             assert lex.get(source_gloss).ipa == entry.ipa
         if colex:
             return
     raise AssertionError("no colexification fired across 40 seeds (unexpected)")
+
+
+def test_polysemy_chain_can_make_a_three_way_colexification():
+    # sun->day (0.30) feeds day->time (0.35): when both links fire, one word covers sun, day
+    # AND time — a polysemy chain produced by the in-order, form-rewriting colexification pass.
+    for seed in range(120):
+        phono, rng = _phonotactics(seed)
+        lex = build_lexicon(phono, rng)
+        sun, day, time = lex.get("sun"), lex.get("day"), lex.get("time")
+        if sun.ipa == day.ipa == time.ipa and day.etymology is Etymology.COLEXIFIED:
+            assert time.etymology is Etymology.COLEXIFIED  # time merged onto the chain, not coined
+            # time merged onto *day* (the rewritten form), not directly onto sun — this pins the
+            # order-dependence the chain relies on (day->time must follow sun->day in the table).
+            assert time.note == "= day"
+            return
+    raise AssertionError("no sun=day=time chain fired across 120 seeds (unexpected)")
+
+
+def test_expanded_inventory_has_new_fields_and_concepts():
+    from conlang.lexicon.concepts import FIELDS
+    for field in ("society", "artifact", "abstract", "existence"):
+        assert field in FIELDS
+    for gloss in ("house", "war", "time", "language", "die", "road", "word", "forest"):
+        assert gloss in BY_GLOSS
 
 
 # --- Lexical gender & the class<->gender link ---------------------------------------
@@ -233,12 +259,11 @@ def test_derivation_uses_the_base_word_when_affix_exists():
     phono, rng = _phonotactics(5)
     system = _system_with_agent_affix()
     lex = build_lexicon(phono, rng, morphology=system)
-    hunter = lex.get("hunter")
-    hunt = lex.get("hunt")
-    assert hunter.etymology is Etymology.DERIVED
-    # hunter = hunt + agent suffix /a/
-    assert hunter.ipa == hunt.ipa + "a"
-    assert "hunt" in hunter.note
+    for prod, base in (("hunter", "hunt"), ("speaker", "speak")):
+        entry, src = lex.get(prod), lex.get(base)
+        assert entry.etymology is Etymology.DERIVED
+        assert entry.ipa == src.ipa + "a"  # product = base + agent suffix /a/
+        assert base in entry.note
 
 
 def test_zero_derivation_makes_the_product_homophonous_with_its_base():
@@ -335,7 +360,8 @@ def test_antonym_derivation_relates_polar_pairs():
     system = MorphologySystem(Typology.AGGLUTINATIVE, {}, [anton])
     phono, rng = _phonotactics(5)
     lex = build_lexicon(phono, rng, morphology=system)
-    for marked, base in (("bad", "good"), ("small", "big"), ("cold", "hot")):
+    for marked, base in (("bad", "good"), ("small", "big"), ("cold", "hot"),
+                         ("short", "long"), ("narrow", "wide")):
         entry = lex.get(marked)
         assert entry.etymology is Etymology.DERIVED
         assert entry.ipa == "m" + lex.get(base).ipa   # prefix opposite-marker
@@ -395,6 +421,9 @@ def test_compound_is_the_concatenation_of_its_parts():
     assert waterfall.etymology is Etymology.COMPOUND
     assert waterfall.ipa == lex.get("water").ipa + lex.get("fall").ipa
     assert waterfall.note == "water+fall"
+    seabird = lex.get("seabird")  # the other new compound
+    assert seabird.etymology is Etymology.COMPOUND
+    assert seabird.ipa == lex.get("sea").ipa + lex.get("bird").ipa
 
 
 def test_compound_order_follows_head_directionality():

@@ -161,8 +161,13 @@ clause-finally rather than by a positional parameter.
 
 ### Deferred (Stage 5 "advanced" backlog)
 
-The lexicon builds a semantic-field dictionary with colexification, derivation, and
-compounding, sized by Zipf's law of abbreviation, plus a **numeral system** (a rolled base
+The lexicon builds a semantic-field dictionary (≈170 concepts across 18 fields, from a Swadesh
+core out to body/nature, an abstract layer, and culturally-borrowable *society*/*artifact*
+vocabulary) with colexification, derivation, and compounding, sized by Zipf's law of
+abbreviation. Colexification now supports **polysemy chains** — the table is applied in order
+and rewrites a merged word's form, so a chain like *sun → day → time* makes one word cover all
+three senses when both links fire (alongside attested hubs like *tongue = language*, *wind =
+spirit*, *mouth = door*). It also has a **numeral system** (a rolled base
 — decimal/vigesimal/quinary/duodecimal — with words composed past five, e.g. "two-ten-four"
 = 24, order tied to head-direction), **antonyms that share morphology** (an
 opposite-forming adjective affix derives the marked pole of a polar pair — bad/small/cold —
@@ -176,8 +181,8 @@ suppletive root, English *eleven/twelve*, reused compositionally in larger numbe
 form in one inflectional cell — *go/went*, *person/people*, *I/me* — coined as an unrelated
 root and used verbatim there, only where the language actually marks that cell; the gloss
 still records the analysis, e.g. *go.1SG.PAST*). Still to add: suppletive decades and
-sub-bases (French *quatre-vingts*), polysemy networks (chains, not just binary
-colexification), semantic shift tied to sound change, and loanword strata / register.
+sub-bases (French *quatre-vingts*), semantic shift tied to sound change, and loanword strata /
+register (the expanded *society*/*artifact* fields are the groundwork for the latter).
 
 ### Deferred (Stage 6 "advanced" backlog)
 
