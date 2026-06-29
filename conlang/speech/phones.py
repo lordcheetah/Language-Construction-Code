@@ -37,7 +37,11 @@ class Source:
     duration: float                 # seconds (before the voice's rate scaling)
     kind: str                       # "voiced" | "noise" | "silence"
     amp: float = 1.0
-    noise_band: tuple[float, float] | None = None  # (center_hz, bw_hz) for shaped noise
+    noise_band: tuple[float, float] | None = None  # (center_hz, bw_hz) for single-band noise
+    # A parallel formant bank for noise: (center_hz, bw_hz, amplitude) peaks summed in parallel,
+    # giving a richer, more distinguishable spectrum than one band (used for fricatives). Takes
+    # precedence over ``noise_band`` when set.
+    noise_formants: tuple[tuple[float, float, float], ...] = ()
     voiced_noise: bool = False       # voiced fricative: noise plus a glottal buzz
     modulate: float = 0.0            # amplitude-modulation rate in Hz (for trills)
 
@@ -91,12 +95,28 @@ _ASPIRATION_S = {
     Place.POSTALVEOLAR: 0.025, Place.RETROFLEX: 0.025, Place.PALATAL: 0.030, Place.VELAR: 0.035,
     Place.UVULAR: 0.035, Place.PHARYNGEAL: 0.030, Place.GLOTTAL: 0.0,
 }
-_PLACE_FRICATIVE = {
-    Place.BILABIAL: (1500, 1200), Place.LABIODENTAL: (4500, 2500), Place.DENTAL: (6500, 2500),
-    Place.ALVEOLAR: (6000, 1800), Place.POSTALVEOLAR: (3500, 1500), Place.RETROFLEX: (2800, 1500),
-    Place.PALATAL: (3000, 1800), Place.VELAR: (1600, 1200), Place.UVULAR: (1200, 1000),
-    Place.PHARYNGEAL: (1000, 900), Place.GLOTTAL: (1500, 1200),
+# Parallel-formant noise spectra for fricatives: each place gets one or two (center_hz, bw_hz,
+# amplitude) peaks summed in parallel, so a sibilant in particular gets a richer, more
+# distinguishable shape than a single band-pass can produce. Amplitudes are relative weights.
+# NOTE: the synth gives each resonator a (1 - r) input gain, which flattens it near DC but does
+# NOT bound its peak — a *low-frequency, narrow-bandwidth* peak would ring much louder than its
+# amplitude weight suggests and could upset the vowel/noise level balance. Keep peaks reasonably
+# high-frequency and/or wide-bandwidth (as below) so the amplitude weights mean what they say.
+_FRICATIVE_FORMANTS = {
+    Place.BILABIAL: ((1000, 1500, 0.7), (2500, 2000, 0.5)),      # diffuse, weak
+    Place.LABIODENTAL: ((1500, 2000, 0.6), (5500, 2500, 0.6)),   # flat, slightly high
+    Place.DENTAL: ((1800, 2000, 0.5), (6500, 2500, 0.6)),        # diffuse, high
+    Place.ALVEOLAR: ((4000, 1500, 0.5), (6800, 1000, 1.0)),      # /s/: strong high peak
+    Place.POSTALVEOLAR: ((2500, 1200, 1.0), (4200, 1500, 0.6)),  # /ʃ/: two mid peaks
+    Place.RETROFLEX: ((2000, 1200, 1.0), (3000, 1500, 0.5)),     # lower than /ʃ/
+    Place.PALATAL: ((3000, 1500, 1.0), (5000, 2000, 0.4)),
+    Place.VELAR: ((1500, 1000, 1.0),),                           # /x/: mid single peak
+    Place.UVULAR: ((1200, 1000, 1.0),),                          # /χ/: low
+    Place.PHARYNGEAL: ((1000, 900, 1.0),),                       # /ħ/: low
+    Place.GLOTTAL: ((1500, 1200, 1.0),),                         # unused: /h/ uses a single band
 }
+# /h/ stays a single band (vowel-coloured by apply_breathy_glottal), not a parallel sibilant.
+_GLOTTAL_FRICATIVE_BAND = (1500, 1200)
 
 
 def consonant_formants(c: Consonant) -> tuple:
@@ -215,8 +235,8 @@ def plan_phone(seg: Segment) -> Phone:
                 Source(0.012, "noise", amp=0.6, noise_band=(_PLACE_BURST[seg.place], 1500))
             )
         if m is Manner.AFFRICATE:
-            band = _PLACE_FRICATIVE[seg.place]
-            sources.append(Source(0.07, "noise", amp=0.5, noise_band=band, voiced_noise=voiced))
+            sources.append(Source(0.07, "noise", amp=0.5,
+                                  noise_formants=_FRICATIVE_FORMANTS[seg.place], voiced_noise=voiced))
         elif not voiced and seg.place is not Place.GLOTTAL:
             # Aspiration (voice-onset delay): a soft breath bridging the burst and the following
             # voicing. Without it an unaspirated burst butted onto the vowel sounds like a click.
@@ -226,17 +246,20 @@ def plan_phone(seg: Segment) -> Phone:
         return Phone(formants, tuple(sources), voiced_resonant=False)
 
     if m in (Manner.FRICATIVE, Manner.LATERAL_FRICATIVE):
-        band = _PLACE_FRICATIVE[seg.place]
-        # /h/ is a soft breath (aspiration), not a sibilant: quieter and a touch shorter, and
-        # coloured by the neighbouring vowel in apply_breathy_glottal so it doesn't hiss like
-        # static. Other fricatives keep their fuller, place-shaped noise.
+        # /h/ is a soft breath (aspiration), not a sibilant: quieter and a touch shorter, and a
+        # single band coloured by the neighbouring vowel in apply_breathy_glottal so it doesn't
+        # hiss like static. Other fricatives use a parallel formant bank — a richer, more
+        # place-distinct spectrum than a lone band-pass.
         glottal = seg.place is Place.GLOTTAL
         amp = 0.3 if glottal else 0.5
         dur = 0.10 if glottal else 0.13
-        return Phone(
-            formants, (Source(dur, "noise", amp=amp, noise_band=band, voiced_noise=voiced),),
-            voiced_resonant=False,
-        )
+        if glottal:
+            source = Source(dur, "noise", amp=amp, noise_band=_GLOTTAL_FRICATIVE_BAND,
+                            voiced_noise=voiced)
+        else:
+            source = Source(dur, "noise", amp=amp,
+                            noise_formants=_FRICATIVE_FORMANTS[seg.place], voiced_noise=voiced)
+        return Phone(formants, (source,), voiced_resonant=False)
 
     if m is Manner.NASAL:
         return Phone(formants, (Source(0.09, "voiced", 0.65),), voiced_resonant=True)

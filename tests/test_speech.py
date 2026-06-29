@@ -297,6 +297,33 @@ def test_distinct_places_differ():
     assert p["p"] != p["t"] != p["k"] and p["p"] != p["k"]
 
 
+# --- Parallel-formant noise bank (fricatives) ---------------------------------------
+def test_fricative_uses_a_parallel_formant_bank_not_a_single_band():
+    s = plan_phone(data.consonant("s")).sources[0]
+    assert s.noise_band is None and len(s.noise_formants) >= 2  # a parallel bank with >=2 peaks
+    sh = plan_phone(data.consonant("ʃ")).sources[0]
+    assert s.noise_formants != sh.noise_formants  # distinct sibilant spectra
+
+
+def test_glottal_h_and_stop_burst_stay_single_band():
+    # only fricatives (except /h/) get the parallel bank; /h/ and stop bursts keep one band
+    h = plan_phone(data.consonant("h")).sources[0]
+    burst = plan_phone(data.consonant("k")).sources[1]  # closure, burst, aspiration
+    assert h.noise_band is not None and not h.noise_formants
+    assert burst.noise_band is not None and not burst.noise_formants
+
+
+def test_affricate_frication_uses_the_parallel_bank():
+    # the frication tail of an affricate shares the fricative spectrum (parallel bank)
+    frication = plan_phone(data.consonant("t͡ʃ")).sources[2]  # closure, burst, frication
+    assert frication.noise_formants and frication.noise_band is None
+
+
+def test_parallel_bank_stays_finite_and_bounded():
+    out = synth(0).synthesize(segs("a s a ʃ a x a"))
+    assert out and all(math.isfinite(v) and -1.0 <= v <= 1.0 for v in out)
+
+
 def _rms(xs):
     return math.sqrt(sum(x * x for x in xs) / max(1, len(xs)))
 
@@ -311,6 +338,18 @@ def test_vowels_are_audible_next_to_noise_not_drowned_out():
         vowel = _rms(sy.synthesize(segs(v)))
         fric = _rms(sy.synthesize(segs("s")))
         assert vowel > fric * 0.3, f"/{v}/ ({vowel:.3f}) is too quiet beside /s/ ({fric:.3f})"
+
+
+def test_bank_fricatives_do_not_drown_the_vowels():
+    # The parallel bank must keep every fricative comparable in level to the vowels in the same
+    # word — a louder bank place would crush the vowels under normalization (the old "static").
+    sy = synth(0)
+    for fric in ("s", "ʃ", "x", "f"):
+        out = sy.synthesize(segs(f"a {fric} a"))
+        n = len(out)
+        vowels = _rms(out[: n * 30 // 100] + out[n * 70 // 100:])   # the two /a/ regions
+        noise = _rms(out[n * 42 // 100: n * 58 // 100])              # the fricative in the middle
+        assert vowels > noise * 0.5, f"/{fric}/ drowns the vowels (v={vowels:.3f} n={noise:.3f})"
 
 
 def test_a_vowel_after_a_stop_carries_most_of_the_energy():

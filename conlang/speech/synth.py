@@ -176,7 +176,17 @@ class Synthesizer:
                 # A voiceless closure resets the resonators, so the following vowel starts
                 # from a clean state rather than the frozen pre-closure one (avoids a click).
                 s1a = s1b = s2a = s2b = s3a = s3b = 0.0
-            if src.kind == "noise" and src.noise_band:
+            # A parallel formant bank for noise (fricatives): each (freq, bw, amp) peak is its own
+            # one-pole-pair resonator, summed amp-weighted — a richer spectrum than one band.
+            bank = ()
+            if src.kind == "noise" and src.noise_formants:
+                bank = tuple(
+                    (amp, math.exp(-math.pi * bw / sr),
+                     2.0 * math.exp(-math.pi * bw / sr) * math.cos(two_pi * f / sr))
+                    for f, bw, amp in src.noise_formants
+                )
+                bank_state = [[0.0, 0.0] for _ in bank]
+            elif src.kind == "noise" and src.noise_band:
                 nf, nbw = src.noise_band
                 rn = math.exp(-math.pi * nbw / sr)
                 cn = 2.0 * rn * math.cos(two_pi * nf / sr)
@@ -204,6 +214,13 @@ class Synthesizer:
                     y3 = (1.0 - c3 + r2sq) * y2 + c3 * s3a - r2sq * s3b
                     s3b, s3a = s3a, y3
                     val = y3
+                elif bank:
+                    y = 0.0
+                    for (amp, rn_k, cn_k), st in zip(bank, bank_state):
+                        yk = (1.0 - rn_k) * x + cn_k * st[0] - rn_k * rn_k * st[1]
+                        st[1], st[0] = st[0], yk
+                        y += amp * yk
+                    val = y
                 elif src.kind == "noise" and src.noise_band:
                     y = gn * x + cn * na - rn * rn * nb
                     nb, na = na, y
