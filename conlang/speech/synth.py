@@ -28,9 +28,22 @@ _TRANSITION_S = 0.045  # how long a formant glide into/out of a steady phone las
 
 @dataclass(frozen=True)
 class Voice:
-    f0: float = 120.0          # fundamental frequency (pitch), Hz
+    f0: float = 120.0          # base/reference fundamental frequency (pitch), Hz
     sample_rate: int = 16000
     rate: float = 1.0          # speech speed multiplier (>1 = faster)
+    # Intonation contour applied to f0 over the utterance: "statement" declines (declination)
+    # and ends in a final fall; "question" dips then rises at the end. A flat monotone is the
+    # single biggest "robotic" tell, so even this coarse contour helps intelligibility.
+    intonation: str = "statement"
+
+
+# Intonation contours as (position 0..1 through the utterance, f0 multiplier) control points,
+# linearly interpolated. Modest excursions (~±25%, a few semitones) — enough to cue prosody
+# without sounding sing-song. A statement drifts down and falls; a question dips then rises.
+_CONTOURS = {
+    "statement": ((0.0, 1.08), (0.75, 0.92), (1.0, 0.78)),
+    "question": ((0.0, 1.02), (0.55, 0.90), (1.0, 1.30)),
+}
 
 
 class Synthesizer:
@@ -108,11 +121,30 @@ class Synthesizer:
                 f3[i] = a[2] + (b[2] - a[2]) * u
         return f1, f2, f3
 
+    def _f0_at(self, u: float) -> float:
+        """The fundamental frequency at fraction *u* (0..1) through the utterance, following the
+        voice's intonation contour. Linearly interpolates the contour control points."""
+        points = _CONTOURS.get(self.voice.intonation, _CONTOURS["statement"])
+        mult = points[-1][1]
+        for (u0, m0), (u1, m1) in zip(points, points[1:]):
+            if u <= u1:
+                span = u1 - u0
+                mult = m0 if span <= 0 else m0 + (m1 - m0) * (u - u0) / span
+                break
+        return self.voice.f0 * mult
+
     def _glottal_source(self, total: int) -> list[float]:
-        period = max(1, int(self.voice.sample_rate / self.voice.f0))
+        sr = self.voice.sample_rate
         src = [0.0] * total
-        for i in range(0, total, period):
-            src[i] = 1.0
+        # Variable-rate impulse train: accumulate phase at the (contour-varying) f0 and drop an
+        # impulse each time a full glottal period completes. A flat f0 reduces to the old
+        # fixed-period train.
+        phase = 0.0
+        for i in range(total):
+            phase += self._f0_at(i / total) / sr
+            if phase >= 1.0:
+                phase -= 1.0
+                src[i] = 1.0
         # Shape each impulse into a decaying pulse (spectral tilt) and remove the DC offset.
         y = 0.0
         for i in range(total):

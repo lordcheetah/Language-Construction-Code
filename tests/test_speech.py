@@ -209,6 +209,51 @@ def test_breathy_glottal_averages_two_flanking_vowels_and_falls_back():
     assert bg(s, [plan_phone(x) for x in s]) == [plan_phone(data.consonant("h"))]
 
 
+# --- Intonation (F0 contour) --------------------------------------------------------
+def test_statement_intonation_declines_and_falls():
+    sy = Synthesizer(Voice(f0=120, intonation="statement"))
+    assert sy._f0_at(0.0) > sy._f0_at(0.5) > sy._f0_at(1.0)  # downward over the utterance
+    assert sy._f0_at(0.0) > 120 and sy._f0_at(1.0) < 120     # starts high, ends below base
+    # and the excursion is audible, not a near-monotone (guards against a flattened regression)
+    assert sy._f0_at(0.0) / sy._f0_at(1.0) > 1.2
+
+
+def test_question_intonation_rises_at_the_end():
+    sy = Synthesizer(Voice(f0=120, intonation="question"))
+    assert sy._f0_at(1.0) > sy._f0_at(0.5)   # final rise
+    assert sy._f0_at(1.0) > sy._f0_at(0.0)   # ends above where it started
+
+
+def test_unknown_intonation_falls_back_to_a_statement_contour():
+    sy = Synthesizer(Voice(intonation="bogus"))
+    stmt = Synthesizer(Voice(intonation="statement"))
+    assert sy._f0_at(0.3) == stmt._f0_at(0.3)
+
+
+def test_intonation_changes_the_audio():
+    # the same word spoken as a statement vs a question must differ (pitch track differs)
+    a = Synthesizer(Voice(intonation="statement"), random.Random(0)).synthesize(segs("p a t a"))
+    b = Synthesizer(Voice(intonation="question"), random.Random(0)).synthesize(segs("p a t a"))
+    assert a != b
+
+
+def test_a_varying_contour_still_synthesizes_a_voiced_buzz():
+    # the (non-flat) default statement contour must still produce audible voicing
+    out = Synthesizer(Voice()).synthesize(segs("a"))
+    assert out and any(abs(x) > 0.1 for x in out)
+
+
+def test_degenerate_flat_contour_hits_the_span_guard(monkeypatch):
+    # a contour whose control points share a position exercises the span<=0 branch (no
+    # ZeroDivisionError) and reduces to a fixed-period, constant-pitch train
+    from conlang.speech import synth as synth_mod
+    monkeypatch.setitem(synth_mod._CONTOURS, "flat", ((0.0, 1.0), (0.0, 1.0)))
+    sy = Synthesizer(Voice(f0=120, intonation="flat"))
+    assert sy._f0_at(0.0) == 120 and sy._f0_at(0.5) == 120  # constant pitch, no crash
+    out = sy.synthesize(segs("a"))
+    assert out and any(abs(x) > 0.1 for x in out)
+
+
 # --- Synthesis contract -------------------------------------------------------------
 def test_samples_are_bounded_and_nonempty():
     out = synth().synthesize(segs("p a t a"))

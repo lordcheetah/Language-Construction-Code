@@ -43,8 +43,10 @@ These sit on top of the whole engine and ship last:
   a front vowel, lower by a back one). Voiceless stops get place-dependent **aspiration** (a
   voice-onset breath, longest on velars) so a release reads as a stop rather than a click, and
   **/h/** is voiced like a whispered copy of its neighbouring vowel (its noise band tracks the
-  vowel's F2) rather than broadband hiss. Robotic but real, offline, and deterministic.
-  Backlog: parallel-formant amplitudes and an optional `espeak-ng` backend.
+  vowel's F2) rather than broadband hiss. Pitch follows an **intonation contour** rather than a
+  flat monotone — a statement declines and falls, a question (`speak --question`) dips then
+  rises. Robotic but real, offline, and deterministic. Backlog: parallel-formant amplitudes and
+  an optional `espeak-ng` backend.
 - **Tutorial** *(done)* — `conlang.tutorial`: an interactive, guided walkthrough that
   teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
   random one) and watch a `Language` take shape, ending with a sample sentence and the seed

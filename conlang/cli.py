@@ -516,7 +516,8 @@ def cmd_speak(args) -> int:
     import os
 
     rng = random.Random(args.seed)
-    voice = Voice(f0=args.f0, rate=args.rate)
+    intonation = "question" if getattr(args, "question", False) else "statement"
+    voice = Voice(f0=args.f0, rate=args.rate, intonation=intonation)
     synth = Synthesizer(voice, rng)
 
     if args.ipa:
@@ -711,6 +712,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--out", default="out/speech.wav", help="output WAV path")
     sp.add_argument("--f0", type=float, default=120.0, help="fundamental pitch in Hz (default 120)")
     sp.add_argument("--rate", type=float, default=1.0, help="speech speed multiplier (default 1.0)")
+    sp.add_argument("--question", action="store_true",
+                    help="use a rising question intonation instead of a falling statement")
     sp.add_argument("--seed", type=int, default=None, help="seed for the language and noise")
     sp.set_defaults(func=cmd_speak)
 
