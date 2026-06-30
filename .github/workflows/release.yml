@@ -1,18 +1,16 @@
 name: Release
 
-# Build the wheel + source distribution and attach them to a GitHub Release whenever a
-# version tag (e.g. v0.1.0) is pushed. The build is gated on the test suite passing and on
-# the tag matching the version declared in pyproject.toml.
+# On pushing a version tag (e.g. v0.1.0), build the wheel + source distribution, then attach
+# them to a GitHub Release and publish them to PyPI. Build/test runs once; the two publish jobs
+# reuse the same artifacts. PyPI upload uses OIDC "trusted publishing" — no API token/secret.
 on:
   push:
     tags:
       - "v*"
 
-permissions:
-  contents: write  # create the release and upload the distributables as assets
-
 jobs:
-  release:
+  build:
+    name: Build & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,9 +41,48 @@ jobs:
       - name: Build the wheel + sdist
         run: python -m build
 
+      - name: Upload the distributables
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  github-release:
+    name: Attach to GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # create the release and upload the assets
+    steps:
+      - name: Download the distributables
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
       - name: Publish the GitHub Release with the distributables
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  pypi-publish:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # PyPI "trusted publisher" config must name this environment (see README "Install & release").
+    environment:
+      name: pypi
+      url: https://pypi.org/p/conlang
+    permissions:
+      id-token: write  # mint the OIDC token PyPI trusts; no stored secret needed
+    steps:
+      - name: Download the distributables
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

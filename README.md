@@ -276,16 +276,27 @@ python -m build                     # -> dist/conlang-<version>-py3-none-any.whl
 pipx install dist/conlang-*.whl     # install the built wheel
 ```
 
-Pushing a version tag builds and publishes those artifacts automatically: bump `version` in
-`pyproject.toml`, then
+Releases are cut by pushing a **version tag** (a normal branch push does *not* trigger one).
+Bump `version` in `pyproject.toml`, commit, then tag and push the tag:
 
 ```bash
-git tag v0.1.0 && git push --tags
+git tag v0.1.0 && git push origin v0.1.0     # the tag — not just `git push` — is what releases
 ```
 
-The [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow runs the test
-suite, checks the tag matches the project version, builds the wheel + sdist, and attaches them
-to a GitHub Release with generated notes.
+The [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow then runs the
+test suite, checks the tag matches the project version, builds the wheel + sdist, attaches them
+to a **GitHub Release** (with generated notes), and publishes them to **PyPI**.
+
+PyPI upload uses OIDC [trusted publishing](https://docs.pypi.org/trusted-publishers/) — no API
+token or stored secret. One-time setup before the first release:
+
+1. On PyPI → *Account settings → Publishing*, add a **pending publisher** for project name
+   `conlang` with: owner = your GitHub user/org, repository = this repo's name, workflow =
+   `release.yml`, environment = `pypi`.
+2. In this repo → *Settings → Environments*, create an environment named `pypi`.
+
+(If the name `conlang` is ever taken on PyPI, rename `project.name` in `pyproject.toml` and the
+`url:` in the workflow to match.)
 
 ## Layout
 
