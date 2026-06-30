@@ -460,11 +460,12 @@ def cmd_generate(args) -> int:
     if args.dictionary:
         print("\n" + lang.lexicon.glossary())
     else:
-        print("\nSample vocabulary:")
+        from conlang.speech.respell import respell
+        print("\nSample vocabulary (with a TTS-friendly respelling):")
         for gloss in _SHOWCASE_VOCAB:
             e = lang.lexicon.get(gloss)
             if e:
-                print(f"  {gloss:<8} {e.roman} /{e.ipa}/")
+                print(f"  {gloss:<8} {e.roman:<10} /{e.ipa}/   say: {respell(e.form)}")
 
     print(f"\nNumbers (base {lang.numerals.base}):")
     for n in (1, 2, 3, 7, 10, 11, 24, 100):
@@ -566,6 +567,10 @@ def cmd_speak(args) -> int:
     seconds = len(samples) / voice.sample_rate
     print(f"Spoke {label}")
     print(f"  {seconds:.2f}s @ {voice.sample_rate} Hz, F0 {voice.f0:.0f} Hz -> {out}")
+    if getattr(args, "respell", False):
+        from conlang.speech.respell import respell
+        # an ASCII respelling to paste into any stock text-to-speech voice
+        print(f"  TTS respelling (paste into any voice): {respell(segments)}")
     return 0
 
 
@@ -731,6 +736,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--rate", type=float, default=1.0, help="speech speed multiplier (default 1.0)")
     sp.add_argument("--question", action="store_true",
                     help="use a rising question intonation instead of a falling statement")
+    sp.add_argument("--respell", action="store_true",
+                    help="also print an ASCII respelling to paste into a stock TTS voice")
     sp.add_argument("--seed", type=int, default=None, help="seed for the language and noise")
     sp.set_defaults(func=cmd_speak)
 

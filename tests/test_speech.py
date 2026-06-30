@@ -420,3 +420,61 @@ def test_silence_input_produces_silence_not_crash():
     sy = synth()
     assert sy.synthesize([]) == []
     assert sy.to_wav_bytes([]) is not None
+
+
+# --- TTS-friendly respelling --------------------------------------------------------
+def test_every_producible_symbol_has_a_respelling():
+    from conlang.speech.respell import _RESPELL
+    missing = [s.ipa for s in data.ALL_SEGMENTS if s.ipa not in _RESPELL]
+    assert not missing, f"no TTS respelling for: {missing}"
+
+
+def test_respell_is_ascii_and_maps_known_phonemes():
+    from conlang.speech.respell import respell
+    out = respell(segs("ʃ i ɲ o"))
+    assert out == "sheenyoh"          # sh + ee + ny + oh
+    assert out.isascii()              # pastes cleanly into any TTS input box
+
+
+def test_respell_drops_the_glottal_stop():
+    # English TTS has no glottal stop, so it leaves no grapheme (the word still flows)
+    from conlang.speech.respell import respell
+    assert respell(segs("p a ʔ a")) == "pahah"
+
+
+def test_respell_falls_back_for_an_unlisted_segment():
+    from conlang.phonology.features import Vowel, Consonant, Height, Backness, Place, Manner, Voicing
+    from conlang.speech.respell import respell
+    nasal_vowel = Vowel("ʉ", 0.0, Height.CLOSE, Backness.CENTRAL, rounded=True)  # not in table
+    assert respell([nasal_vowel]) == "uh"  # vowel fallback
+    click = Consonant("ǂ", 0.0, Place.PALATAL, Manner.PLOSIVE, Voicing.VOICELESS)
+    assert respell([click]) == "h"         # consonant fallback
+
+
+def test_respell_of_nothing_is_empty():
+    from conlang.speech.respell import respell
+    assert respell([]) == ""
+
+
+def test_respell_concatenates_phones_with_no_separator():
+    # pin a few adjacency cases (the respellings are simply joined)
+    from conlang.speech.respell import respell
+    assert respell(segs("a u")) == "ahoo"
+    assert respell(segs("n o j")) == "nohy"
+    assert respell(segs("h h")) == "hh"
+
+
+def test_speak_respell_flag_prints_a_respelling(capsys, tmp_path):
+    from conlang import cli
+    args = cli.build_parser().parse_args(
+        ["speak", "--ipa", "p a t a", "--respell", "--out", str(tmp_path / "w.wav")]
+    )
+    cli.cmd_speak(args)
+    out = capsys.readouterr().out
+    assert "TTS respelling" in out and "pahtah" in out
+
+
+def test_generate_shows_a_tts_respelling(capsys):
+    from conlang import cli
+    cli.cmd_generate(cli.build_parser().parse_args(["generate", "--seed", "42"]))
+    assert "say:" in capsys.readouterr().out  # the sample vocabulary's respelling column

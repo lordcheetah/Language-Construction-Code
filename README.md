@@ -48,7 +48,10 @@ These sit on top of the whole engine and ship last:
   so sibilants get the richer, more distinguishable two-peak spectra that tell *s* from *ʃ*.
   Pitch follows an **intonation contour** rather than a flat monotone — a statement declines and
   falls, a question (`speak --question`) dips then rises. Robotic but real, offline, and
-  deterministic. Backlog: an optional `espeak-ng` backend.
+  deterministic. For a more natural voice without bundling a speech engine, `speak --respell`
+  (and the `generate` vocabulary) print a **TTS-friendly respelling** — an ASCII,
+  English-orthography approximation (*/ʃ/*→"sh", */a/*→"ah", */y/*→"ew") you can paste into any
+  stock system or web text-to-speech voice.
 - **Tutorial** *(done)* — `conlang.tutorial`: an interactive, guided walkthrough that
   teaches the LCK ideas one stage at a time. At each step you make a real choice (or roll a
   random one) and watch a `Language` take shape, ending with a sample sentence and the seed
@@ -247,6 +250,7 @@ python -m conlang writing --seed 3 --type abugida
 # Speak a word with the built-in formant synthesizer -> a WAV file
 python -m conlang speak --ipa "p a t a k a" --out out/word.wav
 python -m conlang speak --seed 42 --gloss water --out out/water.wav
+python -m conlang speak --seed 42 --gloss water --respell  # + an ASCII spelling for any TTS
 
 # Learn to build a language with the interactive, guided tutorial
 python -m conlang tutorial
