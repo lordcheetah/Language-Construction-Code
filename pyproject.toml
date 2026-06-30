@@ -27,6 +27,11 @@ classifiers = [
 ]
 dependencies = []
 
+[project.urls]
+Homepage = "https://github.com/lordcheetah/Language-Construction-Code"
+Repository = "https://github.com/lordcheetah/Language-Construction-Code"
+Issues = "https://github.com/lordcheetah/Language-Construction-Code/issues"
+
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
 

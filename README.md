@@ -1,5 +1,10 @@
 # Language Construction Code
 
+[![PyPI](https://img.shields.io/pypi/v/conlang.svg)](https://pypi.org/project/conlang/)
+[![Python versions](https://img.shields.io/pypi/pyversions/conlang.svg)](https://pypi.org/project/conlang/)
+[![Release](https://github.com/lordcheetah/Language-Construction-Code/actions/workflows/release.yml/badge.svg)](https://github.com/lordcheetah/Language-Construction-Code/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A toolkit for generating constructed languages (conlangs), built on the principles in
 Mark Rosenfelder's (zompist.com) *Language Construction Kit*, *Advanced Language
 Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit*.
