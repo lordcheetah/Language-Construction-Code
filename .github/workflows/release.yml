@@ -1,0 +1,51 @@
+name: Release
+
+# Build the wheel + source distribution and attach them to a GitHub Release whenever a
+# version tag (e.g. v0.1.0) is pushed. The build is gated on the test suite passing and on
+# the tag matching the version declared in pyproject.toml.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write  # create the release and upload the distributables as assets
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify the tag matches the project version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          ver="$(python -c "import tomllib, pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")"
+          echo "tag=$tag  pyproject=$ver"
+          if [ "$tag" != "$ver" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pyproject version $ver" >&2
+            exit 1
+          fi
+
+      - name: Install build + test tools
+        run: python -m pip install --upgrade build pytest
+
+      - name: Run the test suite
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        run: python -m pytest -q
+
+      - name: Build the wheel + sdist
+        run: python -m build
+
+      - name: Publish the GitHub Release with the distributables
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

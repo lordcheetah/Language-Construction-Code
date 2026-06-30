@@ -260,6 +260,33 @@ python -m conlang tutorial --demo --seed 7   # non-interactive walkthrough
 python -m conlang learn --seed 42
 ```
 
+## Install &amp; release
+
+The package is pure Python with no runtime dependencies, so it installs anywhere:
+
+```bash
+pip install .                       # or `pip install -e .` for a live, editable install
+pipx install .                      # isolated, puts the `conlang` command on your PATH
+```
+
+Build the release artifacts (a wheel and a source distribution) locally with:
+
+```bash
+python -m build                     # -> dist/conlang-<version>-py3-none-any.whl + .tar.gz
+pipx install dist/conlang-*.whl     # install the built wheel
+```
+
+Pushing a version tag builds and publishes those artifacts automatically: bump `version` in
+`pyproject.toml`, then
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+The [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow runs the test
+suite, checks the tag matches the project version, builds the wheel + sdist, and attaches them
+to a GitHub Release with generated notes.
+
 ## Layout
 
 ```
