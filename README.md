@@ -36,7 +36,7 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 
 ### Capstone applications (after the engine stages)
 
-These sit on top of the whole engine and ship last:
+These sit on top of the whole engine and were built last — all three are done:
 
 - **Text-to-speech** *(done)* — `conlang.speech`: a pure-Python, dependency-free formant
   synthesizer. It reads the same phonological features the engine uses (vowel
@@ -67,7 +67,7 @@ These sit on top of the whole engine and ship last:
   notes and a worked example each session. Progress persists as JSON keyed by the seed (the
   language is recovered from it), so you can resume across days.
 
-### Deferred (Stage 2 "advanced" backlog)
+### Advanced features (Stage 2)
 
 The sound-change engine handles substitution, feature-class transforms, deletion, ordered
 (feeding/bleeding) rule application, and — added since the first pass — **epenthesis**
@@ -82,7 +82,7 @@ target may include one variable-width `*` slot (and `.` matches any segment), so
 swap across a span (`[liquid] .* [liquid] > 3 2 1`, the *miraclo*→*milagro* alternation). The
 sound-change engine is now feature-complete.
 
-### Deferred (Stage 3 "advanced" backlog)
+### Advanced features (Stage 3)
 
 Morphology handles inflection (agglutinative + fusional + **isolating**, where an isolating
 language realizes each marked category as a free-standing grammatical *particle* word —
@@ -120,7 +120,7 @@ class to that gender (declensions track gender, Latin-style — a per-language g
 map dealt round-robin so different languages pair them differently), and adjectives agree
 with their head noun's gender.
 
-### Deferred (Stage 4 "advanced" backlog)
+### Advanced features (Stage 4)
 
 Syntax models constituent order, harmonic correlates, alignment (with a two-way
 core-case simplification), subject/absolutive agreement, intra-NP modifier order,
@@ -167,7 +167,7 @@ position before the subject — do-support — while the lexical verb appears in
 verb-second, which forms its own verb-first questions). Non-topic oblique phrases are still placed
 clause-finally rather than by a positional parameter.
 
-### Deferred (Stage 5 "advanced" backlog)
+### Advanced features (Stage 5)
 
 The lexicon builds a semantic-field dictionary (≈170 concepts across 18 fields, from a Swadesh
 core out to body/nature, an abstract layer, and culturally-borrowable *society*/*artifact*
@@ -200,7 +200,7 @@ sound change and meaning change; `Language.semantic_shift(rules, rng)` reports t
 the `generate` command shows a sample). Still to add: suppletive decades and sub-bases (French
 *quatre-vingts*).
 
-### Deferred (Stage 6 "advanced" backlog)
+### Advanced features (Stage 6)
 
 The writing system generates featural SVG glyphs for four script types, plus **numeral
 glyphs** (Maya-style bars-and-dots digits in positional notation), **punctuation** (a
