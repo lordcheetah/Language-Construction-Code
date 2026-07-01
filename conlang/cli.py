@@ -574,6 +574,11 @@ def cmd_speak(args) -> int:
     return 0
 
 
+def cmd_gui(args) -> int:
+    from conlang.gui import run
+    return run(args.seed, sandhi=args.sandhi)
+
+
 def cmd_tutorial(args) -> int:
     session = TutorialSession(LanguageBuilder.start(args.seed), build_steps())
     if args.demo:
@@ -740,6 +745,14 @@ def build_parser() -> argparse.ArgumentParser:
                     help="also print an ASCII respelling to paste into a stock TTS voice")
     sp.add_argument("--seed", type=int, default=None, help="seed for the language and noise")
     sp.set_defaults(func=cmd_speak)
+
+    gui = sub.add_parser(
+        "gui",
+        help="open the desktop app (Tkinter) to browse a generated language",
+    )
+    gui.add_argument("--seed", type=int, default=None, help="language to open (else random)")
+    gui.add_argument("--sandhi", action="store_true", help="apply sound changes at morpheme boundaries")
+    gui.set_defaults(func=cmd_gui)
 
     tut = sub.add_parser(
         "tutorial",

@@ -36,7 +36,7 @@ Construction Kit*, *The Conlanger's Lexipedia*, and *The Syntax Construction Kit
 
 ### Capstone applications (after the engine stages)
 
-These sit on top of the whole engine and were built last — all three are done:
+These sit on top of the whole engine and were built last — all are done:
 
 - **Text-to-speech** *(done)* — `conlang.speech`: a pure-Python, dependency-free formant
   synthesizer. It reads the same phonological features the engine uses (vowel
@@ -66,6 +66,15 @@ These sit on top of the whole engine and were built last — all three are done:
   directions, scheduled by the SM-2 algorithm and quizzed as multiple choice, with grammar
   notes and a worked example each session. Progress persists as JSON keyed by the seed (the
   language is recovered from it), so you can resume across days.
+- **Desktop GUI** *(done)* — `conlang.gui`: a **Tkinter** window (standard library, so it
+  keeps the zero-dependency, offline promise) that regenerates a language from a seed and
+  browses it across tabs — an overview, the dictionary (with a **Speak** button driving the
+  formant synthesiser), glossed sentences, the numerals, and a **Script** tab that draws the
+  native writing system straight onto a canvas from the glyph stroke primitives (the same
+  vectors the SVG renderer uses, honouring reading direction and cursive joining). The display
+  data and glyph geometry are pure, toolkit-free modules (so they are unit-tested headless);
+  only the widgets touch Tkinter. Run it with `conlang gui` (audio playback is Windows-only,
+  but the window and script rendering work everywhere Tk does).
 
 ### Advanced features (Stage 2)
 
@@ -278,6 +287,10 @@ python -m conlang tutorial --demo --seed 7   # non-interactive walkthrough
 
 # Learn a generated language with spaced-repetition vocabulary drills (resumable)
 python -m conlang learn --seed 42
+
+# Open the desktop app (Tkinter) to browse a language across tabs
+python -m conlang gui
+python -m conlang gui --seed 42
 ```
 
 ## Layout
@@ -327,6 +340,10 @@ conlang/
     course.py        # due selection, new cards, multiple-choice questions (pure logic)
     progress.py      # save/load review state as JSON (keyed by seed)
     runner.py        # interactive study session
+  gui/
+    drawops.py       # pure glyph -> canvas draw-ops (line/oval/poly); no toolkit
+    viewmodel.py     # pure build_view(seed): all display data for one language
+    app.py           # Tkinter window: tabs, canvas script rendering, Speak button
   language.py        # the Language aggregate: all six stages in one object + generate(seed)
   cli.py             # command-line interface (guided + random)
 tests/               # pytest suite
