@@ -209,11 +209,13 @@ the `generate` command shows a sample).
 The writing system generates featural SVG glyphs for four script types, plus **numeral
 glyphs** (Maya-style bars-and-dots digits in positional notation), **punctuation** (a
 daṇḍa-like sentence stop, a half-height clause pause, and an interpunct word divider, with
-`sentence_svg` laying out a written sentence), and a rolled **layout direction**
-(left-to-right, right-to-left, or top-to-bottom — running text flows accordingly while the
-reference chart and numerals stay left-to-right). Still to add: ligatures/positional forms,
-explicit cluster stacking (beyond the coda virama), and connecting/cursive strokes. True
-logographic/pictographic scripts are a separate, larger effort.
+`sentence_svg` laying out a written sentence), a rolled **layout direction** (left-to-right,
+right-to-left, or top-to-bottom — running text flows accordingly while the reference chart
+and numerals stay left-to-right), optional **cursive joining** (glyphs in a horizontal row
+strung along a connecting baseline stroke), and — for abugidas — optional **cluster
+stacking** (a consonant cluster stacks into one Brahmic-style conjunct glyph rather than
+marking each member with a virama). Still to add: ligatures and positional (initial/medial/
+final) letter forms; true logographic/pictographic scripts are a separate, larger effort.
 
 ## How this is built
 

@@ -23,7 +23,7 @@ from enum import Enum
 from typing import Sequence
 
 from conlang.phonology.features import Segment
-from conlang.writing.glyph import Glyph, Style, Line, Path, Circle, slant_transform
+from conlang.writing.glyph import Glyph, Style, Line, Path, Circle, slant_transform, _n
 
 
 class WritingSystemType(Enum):
@@ -48,6 +48,37 @@ _CARRIER = Glyph((Line(50, 25, 50, 85),))
 # cluster member — carries it so it is not confused with the bare inherent-vowel form.
 _VIRAMA = Glyph((Line(40, 92, 60, 84),))
 
+
+def _stack_glyphs(glyphs: Sequence[Glyph]) -> Glyph:
+    """Stack consonant glyphs into one conjunct, top to bottom (Brahmic-style).
+
+    Each glyph is scaled down and offset vertically so a cluster reads as a single stacked
+    ligature — the way Devanagari writes क्ष (k+ṣ) as one conjunct rather than two letters.
+    """
+    f = 0.9 / len(glyphs)
+    dx = 50 * (1 - f)  # centre each scaled glyph horizontally
+    out = Glyph()
+    for k, g in enumerate(glyphs):
+        out = out.overlay(g.scaled(f, dx=dx, dy=k * (100 * f) + 5))
+    return out
+
+
+def _join_runs(joinable: Sequence[bool]) -> list[tuple[int, int]]:
+    """Index ranges (start, end) of each maximal run of ≥2 adjacent joinable cells."""
+    runs: list[tuple[int, int]] = []
+    i, n = 0, len(joinable)
+    while i < n:
+        if joinable[i]:
+            j = i
+            while j + 1 < n and joinable[j + 1]:
+                j += 1
+            if j > i:
+                runs.append((i, j))
+            i = j + 1
+        else:
+            i += 1
+    return runs
+
 _CELL_W = 110
 _CELL_H = 135
 
@@ -63,6 +94,8 @@ class WritingSystem:
     digit_glyphs: dict[int, Glyph] = field(default_factory=dict)  # digit value -> glyph
     punctuation: dict[str, Glyph] = field(default_factory=dict)   # "stop"/"pause"/"word" marks
     direction: WritingDirection = WritingDirection.LTR           # flow of running text
+    cursive: bool = False        # glyphs in a word are joined by a baseline connecting stroke
+    stack_clusters: bool = False  # (abugida) a consonant cluster stacks into one conjunct glyph
 
     # --- Rendering a word ------------------------------------------------------------
     def render_segments(self, segments: Sequence[Segment]) -> list[tuple[str, Glyph]]:
@@ -81,11 +114,35 @@ class WritingSystem:
         return self.vowels.get(s.ipa)
 
     def _cv_units(self, segments: Sequence[Segment], compose_inherent: bool):
+        # Conjunct stacking is only meaningful for an abugida — a syllabary already fuses CV.
+        stack = self.stack_clusters and not compose_inherent
         units: list[tuple[str, Glyph]] = []
         i, n = 0, len(segments)
         while i < n:
             s = segments[i]
             if s.is_consonant and s.ipa in self.consonants:
+                if stack:
+                    # Gather a maximal adjacent-consonant run. (A real script forms conjuncts
+                    # within a syllable/onset; with no syllabifier here we stack any run.)
+                    run, j = [], i
+                    while j < n and segments[j].is_consonant and segments[j].ipa in self.consonants:
+                        run.append(segments[j])
+                        j += 1
+                    if len(run) >= 2:  # a cluster: stack it into one conjunct glyph
+                        conjunct = _stack_glyphs([self.consonants[c.ipa] for c in run])
+                        label = "".join(c.ipa for c in run)
+                        nxt = segments[j] if j < n else None
+                        if nxt is not None and nxt.is_vowel and nxt.ipa in self.diacritics:
+                            if nxt.ipa == self.inherent_vowel:
+                                units.append((label, conjunct))  # inherent vowel: bare
+                            else:
+                                units.append((label + nxt.ipa, conjunct.overlay(self.diacritics[nxt.ipa])))
+                            i = j + 1
+                        else:
+                            units.append((label, conjunct.overlay(_VIRAMA)))
+                            i = j
+                        continue
+                    # a lone consonant (not a cluster): fall through to per-consonant handling
                 base = self.consonants[s.ipa]
                 nxt = segments[i + 1] if i + 1 < n else None
                 if nxt is not None and nxt.is_vowel and nxt.ipa in self.diacritics:
@@ -106,16 +163,22 @@ class WritingSystem:
                 i += 1  # unknown segment: skip
         return units
 
-    def _row_svg(self, glyphs: Sequence[Glyph], size: int) -> str:
+    def _row_svg(
+        self, glyphs: Sequence[Glyph], size: int, joinable: Sequence[bool] | None = None
+    ) -> str:
         """Lay out a line of glyphs (one 100-unit cell each) in the script's direction.
 
         Left-to-right and right-to-left run horizontally (RTL places the first glyph at the
-        right); top-to-bottom stacks the cells vertically.
+        right); top-to-bottom stacks the cells vertically. *joinable* marks which cells are
+        letters that a cursive script strings together (defaults to all); word dividers and
+        punctuation pass ``False`` so the connecting stroke breaks between words.
         """
         glyphs = list(glyphs) or [Glyph()]
         cell, n = 100, len(glyphs)
         vertical = self.direction is WritingDirection.TTB
-        groups = []
+        if joinable is None:
+            joinable = [True] * n
+        xs, cells = [], []
         for i, glyph in enumerate(glyphs):
             if vertical:
                 x, y = 0, i * cell
@@ -123,13 +186,27 @@ class WritingSystem:
                 x, y = (n - 1 - i) * cell, 0
             else:
                 x, y = i * cell, 0
+            xs.append(x)
             inner = glyph.to_svg_group(self.style, slant_transform(self.style.slant))
-            groups.append(f'<g transform="translate({x} {y})">{inner}</g>')
+            cells.append(f'<g transform="translate({x} {y})">{inner}</g>')
+        # A cursive script joins adjacent letters with a connecting baseline stroke; one
+        # stroke per run of joined cells, so it breaks at word gaps and punctuation. Each is a
+        # bare <line> (not a positioned <g> cell) so it never counts as a glyph slot; drawn
+        # before the cells so the glyphs sit on top.
+        joins = []
+        if self.cursive and not vertical:
+            for a, b in _join_runs(joinable):
+                left, right = min(xs[a], xs[b]), max(xs[a], xs[b])
+                joins.append(
+                    f'<line x1="{left + 15}" y1="78" x2="{right + 85}" y2="78" '
+                    f'stroke="{self.style.color}" stroke-width="{_n(self.style.stroke_width)}" '
+                    f'stroke-linecap="round"/>'
+                )
         vb_w, vb_h = (cell, n * cell) if vertical else (n * cell, cell)
         px_w, px_h = (size, n * size) if vertical else (n * size, size)
         return (
             f'<svg xmlns="http://www.w3.org/2000/svg" width="{px_w}" '
-            f'height="{px_h}" viewBox="0 0 {vb_w} {vb_h}">{"".join(groups)}</svg>'
+            f'height="{px_h}" viewBox="0 0 {vb_w} {vb_h}">{"".join(joins)}{"".join(cells)}</svg>'
         )
 
     def word_svg(self, segments: Sequence[Segment], size: int = 80) -> str:
@@ -143,14 +220,19 @@ class WritingSystem:
         script with no punctuation degrades to spaced (or run-on) writing."""
         divider = self.punctuation.get("word", Glyph())
         glyphs: list[Glyph] = []
+        joinable: list[bool] = []  # dividers/punctuation are False so cursive joins break there
         for i, word in enumerate(words):
             if i > 0:
                 glyphs.append(divider)
-            glyphs.extend(g for _, g in self.render_segments(word))
+                joinable.append(False)
+            for _, g in self.render_segments(word):
+                glyphs.append(g)
+                joinable.append(True)
         terminal = self.punctuation.get(terminator)
         if terminal is not None:
             glyphs.append(terminal)
-        return self._row_svg(glyphs, size)
+            joinable.append(False)
+        return self._row_svg(glyphs, size, joinable)
 
     # --- Numbers ---------------------------------------------------------------------
     def number_svg(self, n: int, base: int, size: int = 80) -> str:
@@ -223,8 +305,14 @@ class WritingSystem:
         line = f"Writing system: {self.type.value}"
         if self.type is WritingSystemType.ABUGIDA and self.inherent_vowel:
             line += f" (inherent vowel /{self.inherent_vowel}/)"
+        traits = [self.direction.value]
+        if self.cursive:
+            traits.append("cursive (joined)")
+        if self.stack_clusters and self.type is WritingSystemType.ABUGIDA:
+            traits.append("stacked conjuncts")
         return (
             f"{line}\n"
+            f"  {', '.join(traits)}\n"
             f"  {len(self.consonants)} consonant glyphs, {len(self.vowels)} vowel glyphs, "
             f"{len(self.chart_cells())} chart cells"
         )

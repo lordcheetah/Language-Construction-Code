@@ -35,7 +35,7 @@ from conlang.lexicon.numerals import build_numerals, NumeralSystem
 from conlang.lexicon.concepts import SEMANTIC_SHIFTS
 from conlang.soundchange.ruleset import RuleSet
 from conlang.writing.generator import build_writing_system
-from conlang.writing.system import WritingSystem
+from conlang.writing.system import WritingSystem, WritingSystemType
 
 # A word whose meaning drifts is more likely to do so once a sound change has made it
 # homophonous with another word (homophony-driven semantic change) — this multiplies its base
@@ -93,7 +93,8 @@ class SemanticShift:
 # v33: a language may roll a loanword stratum (donor phonology + borrowed cultural vocab), shifting lexicon RNG.
 # v34: base-10/12 numerals may roll suppletive decades or a vigesimal sub-base (extra numeral RNG draws).
 # v35: syntax rolls an oblique-position parameter (an extra shared-RNG draw before lexicon/writing).
-GENERATOR_VERSION = 35
+# v36: the writing system rolls cursive joining and cluster-stacking flags (two extra RNG draws).
+GENERATOR_VERSION = 36
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by
@@ -415,6 +416,10 @@ class Language:
             "writing": {
                 "type": self.writing.type.value,
                 "direction": self.writing.direction.value,
+                "cursive": self.writing.cursive,
+                # only meaningful for an abugida, so report it masked
+                "stack_clusters": (self.writing.stack_clusters
+                                   and self.writing.type is WritingSystemType.ABUGIDA),
             },
             "numerals": {
                 "base": self.numerals.base,

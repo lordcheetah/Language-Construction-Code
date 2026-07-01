@@ -292,12 +292,118 @@ def test_chart_and_numbers_stay_ltr_regardless_of_direction():
         assert ws.number_svg(42, base=10) == ltr_number  # numerals stay left-to-right
 
 
+# --- Cursive (connecting strokes) ---------------------------------------------------
+def _connectors(svg):
+    root = ET.fromstring(svg)
+    return [c for c in root if c.tag.endswith("line")]
+
+
+def test_cursive_adds_a_baseline_connecting_stroke():
+    ws = _system(WritingSystemType.ALPHABET)
+    ws.direction = WritingDirection.LTR
+    ws.cursive = False
+    assert _connectors(ws.word_svg(segs("p a t"))) == []
+    ws.cursive = True
+    joins = _connectors(ws.word_svg(segs("p a t")))
+    assert len(joins) == 1
+    line = joins[0]
+    assert line.attrib["y1"] == line.attrib["y2"]        # a horizontal baseline
+    assert float(line.attrib["x2"]) > float(line.attrib["x1"])
+
+
+def test_cursive_join_is_not_counted_as_a_glyph_cell():
+    # The connector is a bare <line>, so it must not shift the glyph-cell layout.
+    ws = _system(WritingSystemType.ALPHABET)
+    ws.direction = WritingDirection.LTR
+    ws.cursive = True
+    cells, vb = _cells(ws.word_svg(segs("p a t")))
+    assert [x for x, _ in cells] == [0, 100, 200] and vb == "0 0 300 100"
+
+
+def test_cursive_has_no_connector_for_a_single_glyph_or_vertical_script():
+    ws = _system(WritingSystemType.ALPHABET)
+    ws.cursive = True
+    ws.direction = WritingDirection.LTR
+    assert _connectors(ws.word_svg(segs("p"))) == []     # one glyph: nothing to join
+    ws.direction = WritingDirection.TTB
+    assert _connectors(ws.word_svg(segs("p a t"))) == []  # vertical: no horizontal join
+
+
+def test_cursive_join_breaks_at_word_gaps_and_punctuation():
+    # A sentence joins letters within each word but breaks the stroke at dividers and the
+    # terminal mark — one connector per word, never one unbroken row-long ligature.
+    ws = build_writing_system(Inventory.from_ipa("p t k a i u"), random.Random(1))
+    ws.direction = WritingDirection.LTR
+    ws.cursive = True
+    joins = _connectors(ws.sentence_svg([segs("p a"), segs("t i"), segs("k u")]))
+    assert len(joins) == 3  # three two-letter words, three separate joins
+    # each join spans a single word (~one cell wide), not the whole 9-cell row
+    for line in joins:
+        assert float(line.attrib["x2"]) - float(line.attrib["x1"]) < 200
+
+
+def test_cursive_output_is_well_formed():
+    ws = _system(WritingSystemType.ABUGIDA)
+    ws.cursive = True
+    assert is_well_formed_svg(ws.word_svg(segs("p a t i")))
+    assert is_well_formed_svg(ws.sentence_svg([segs("p a"), segs("t i")]))
+
+
+# --- Cluster stacking (Brahmic conjuncts) -------------------------------------------
+def test_stacking_merges_an_onset_cluster_into_one_conjunct():
+    ws = _system(WritingSystemType.ABUGIDA)          # inherent vowel is /a/
+    p, t = ws.consonants["p"], ws.consonants["t"]
+    ws.stack_clusters = False
+    # /a/ is inherent, so it is written bare: two units, labelled "p" and "t".
+    assert [u[0] for u in ws.render_segments(segs("p t a"))] == ["p", "t"]
+    ws.stack_clusters = True
+    units = ws.render_segments(segs("p t a"))         # /pt/ cluster + inherent /a/
+    assert [u[0] for u in units] == ["pt"]             # one stacked conjunct
+    # the conjunct carries the strokes of both consonants (bare: inherent vowel unwritten)
+    assert len(units[0][1].strokes) == len(p.strokes) + len(t.strokes)
+
+
+def test_stacking_a_coda_cluster_keeps_the_virama():
+    ws = _system(WritingSystemType.ABUGIDA)
+    ws.stack_clusters = True
+    units = ws.render_segments(segs("a p t"))          # vowel, then a final /pt/ cluster
+    assert [u[0] for u in units] == ["a", "pt"]
+    p, t = ws.consonants["p"], ws.consonants["t"]
+    # no following vowel -> the conjunct still takes the vowel-killer mark (+1 stroke)
+    assert len(units[1][1].strokes) == len(p.strokes) + len(t.strokes) + 1
+
+
+def test_stacking_is_ignored_by_a_syllabary():
+    # A syllabary already fuses CV, so the conjunct flag must not change its output.
+    plain = _system(WritingSystemType.SYLLABARY)
+    plain.stack_clusters = False
+    stacked = _system(WritingSystemType.SYLLABARY)
+    stacked.stack_clusters = True
+    word = segs("p t a")
+    assert ([u[0] for u in plain.render_segments(word)]
+            == [u[0] for u in stacked.render_segments(word)])
+
+
+def test_stacking_output_is_well_formed():
+    ws = _system(WritingSystemType.ABUGIDA)
+    ws.stack_clusters = True
+    assert is_well_formed_svg(ws.word_svg(segs("p t a k t i")))
+
+
 # --- Generator ----------------------------------------------------------------------
 def test_build_writing_system_reproducible():
     inv = Inventory.from_ipa("p t k b a i u")
     a = build_writing_system(inv, random.Random(5))
     b = build_writing_system(inv, random.Random(5))
     assert a.type == b.type and a.style == b.style and a.direction == b.direction
+    assert a.cursive == b.cursive and a.stack_clusters == b.stack_clusters
+
+
+def test_generator_rolls_both_cursive_and_plain_scripts():
+    inv = Inventory.from_ipa("p t k b a i u")
+    cursive = {build_writing_system(inv, random.Random(s)).cursive for s in range(40)}
+    stacking = {build_writing_system(inv, random.Random(s)).stack_clusters for s in range(40)}
+    assert cursive == {True, False} and stacking == {True, False}
 
 
 def test_abugida_inherent_vowel_prefers_open():

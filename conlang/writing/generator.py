@@ -52,6 +52,12 @@ def build_writing_system(
         weights=[0.78, 0.15, 0.07], k=1,
     )[0]
 
+    # A minority of scripts are cursive — their letters join along a connecting baseline
+    # stroke. And some abugidas stack a consonant cluster into one conjunct glyph
+    # (Brahmic-style samyuktakshara) instead of marking each cluster member vowelless.
+    cursive = rng.random() < 0.22
+    stack_clusters = rng.random() < 0.35
+
     voiced_mark = style.voiced_mark
     consonants = {c.ipa: consonant_glyph(c, voiced_mark=voiced_mark) for c in inventory.consonants}
     vowels = {v.ipa: vowel_glyph(v) for v in inventory.vowels}
@@ -75,4 +81,6 @@ def build_writing_system(
         digit_glyphs=build_digit_glyphs(),  # bars-and-dots digits (pure geometry, no rng)
         punctuation=build_punctuation(),    # stop / pause / word marks (pure geometry, no rng)
         direction=direction,
+        cursive=cursive,
+        stack_clusters=stack_clusters,
     )
