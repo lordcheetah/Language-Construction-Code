@@ -91,7 +91,8 @@ class SemanticShift:
 # v31: syntax may roll subject-aux-inversion questions + an AUX particle is coined (shifts lexicon RNG).
 # v32: the concept inventory was expanded (new fields + colexification/derivation entries), changing the lexicon.
 # v33: a language may roll a loanword stratum (donor phonology + borrowed cultural vocab), shifting lexicon RNG.
-GENERATOR_VERSION = 33
+# v34: base-10/12 numerals may roll suppletive decades or a vigesimal sub-base (extra numeral RNG draws).
+GENERATOR_VERSION = 34
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

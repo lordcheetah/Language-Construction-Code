@@ -14,7 +14,16 @@ first few numbers above the base (``base+1 .. base+3``) take their own suppletiv
 than the regular composition (English *eleven*, *twelve*), and those roots are reused
 compositionally (so "one-hundred eleven", not "one-hundred ten-one").
 
-Remaining simplification: no suppletive decades and no sub-bases (French *quatre-vingts*).
+A minority of base-10/12 languages also form their **decades** irregularly, in one of two ways
+(mutually exclusive; most compose regularly):
+
+- **Suppletive decades** — the tens (``2·base``, ``3·base``, …) take their own opaque roots
+  rather than "multiplier + base" (loosely, English *twenty/thirty* vs. *two-ten/three-ten*).
+- A **vigesimal sub-base** (base 10 only) — decades are grouped in twenties (French
+  *quatre-vingts* 80 = four-twenty, *quatre-vingt-dix* 90 = four-twenty-ten), an odd decade
+  adding a leftover ten. This scores *every* even decade (40 = two-score, 60 = three-score), so
+  it is the fully-vigesimal Welsh/Breton/Danish "scores" system rather than French-exact (French
+  keeps *quarante*/*soixante* decimal and only goes vigesimal at 80).
 """
 
 from __future__ import annotations
@@ -51,6 +60,8 @@ class NumeralSystem:
     units_before_tens: bool
     bare_base_for_one: bool
     irregular: dict[int, Numeral] = field(default_factory=dict)  # suppletive teens, by value
+    decades: dict[int, Numeral] = field(default_factory=dict)    # suppletive tens (2·base…), by value
+    score_word: "Numeral | None" = None  # a "twenty" (2·base) root -> a vigesimal sub-base for decades
 
     @property
     def max_value(self) -> int:
@@ -70,7 +81,7 @@ class NumeralSystem:
             return [self.atoms[n]]
         if n < self.base ** 2:
             tens, units = divmod(n, self.base)
-            group = self._group(tens, self.base_word)
+            group = self._tens_group(tens)
             if not units:
                 return group
             unit = [self.atoms[units]]
@@ -78,6 +89,25 @@ class NumeralSystem:
         hundreds, rest = divmod(n, self.base ** 2)
         group = self._group(hundreds, self.square_word)
         return group + (self._components(rest) if rest else [])
+
+    def _tens_group(self, tens: int) -> list[Numeral]:
+        """The words for ``tens · base`` (a decade): a vigesimal score grouping, a suppletive
+        decade root, or the regular multiplier × base — whichever this language uses."""
+        if self.score_word is not None:              # vigesimal sub-base (four-twenty…)
+            return self._score_group(tens)
+        decade = self.decades.get(tens * self.base)  # a suppletive decade root
+        if decade is not None:
+            return [decade]
+        return self._group(tens, self.base_word)     # regular: multiplier × base
+
+    def _score_group(self, tens: int) -> list[Numeral]:
+        """A decade under a vigesimal sub-base: ``tens·base`` counted in twenties, plus a
+        leftover ten for an odd decade (French quatre-vingt-dix, 90 = four-twenty-ten)."""
+        twenties, rem = divmod(tens * self.base, 2 * self.base)
+        parts = self._group(twenties, self.score_word) if twenties else []
+        if rem:  # a leftover ten (odd decade): "… ten"
+            parts = parts + [self.base_word]
+        return parts
 
     def _group(self, multiplier: int, base_word: Numeral) -> list[Numeral]:
         """A multiplier times a base word, e.g. 2 x ten = 'two ten' (order rolled)."""
@@ -139,13 +169,32 @@ def build_numerals(
 
     # A head-final language leans toward modifier-first numerals (multiplier and units
     # before the base), a head-initial one toward base/tens-first.
+    multiplier_before_base = rng.random() < (0.85 if head_final else 0.55)
+    units_before_tens = rng.random() < (0.35 if head_final else 0.10)
+    bare_base_for_one = rng.random() < 0.5
+
+    # Irregular decade formation (base 10/12 only): either suppletive decade roots, or — base 10
+    # only — a vigesimal sub-base that groups the decades in twenties (French quatre-vingts).
+    # Mutually exclusive and a minority; rolled last so a regular result stays byte-identical.
+    decades: dict[int, Numeral] = {}
+    score_word: Numeral | None = None
+    if base in (10, 12):
+        roll = rng.random()
+        if base == 10 and roll < 0.15:
+            score_word = word_for(2 * base)  # a distinct "twenty" (score) root
+        elif roll < 0.35:
+            for tens in range(2, base):
+                decades[tens * base] = word_for(tens * base)
+
     return NumeralSystem(
         base=base,
         atoms=atoms,
         base_word=base_word,
         square_word=square_word,
-        multiplier_before_base=rng.random() < (0.85 if head_final else 0.55),
-        units_before_tens=rng.random() < (0.35 if head_final else 0.10),
-        bare_base_for_one=rng.random() < 0.5,
+        multiplier_before_base=multiplier_before_base,
+        units_before_tens=units_before_tens,
+        bare_base_for_one=bare_base_for_one,
         irregular=irregular,
+        decades=decades,
+        score_word=score_word,
     )

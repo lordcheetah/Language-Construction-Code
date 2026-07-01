@@ -184,8 +184,11 @@ and a **kinship system** (kin terms plus a rolled typology: siblings distinguish
 merged into one sex-neutral term, and classificatory parent's-sibling merging where uncle =
 father and aunt = mother, vs. descriptive distinct terms), and **irregular teens** (a base-≥10
 language may give the first few numbers above the base — `base+1 … base+3` — their own
-suppletive root, English *eleven/twelve*, reused compositionally in larger numbers), and
-**suppletion in basic vocabulary** (a few high-frequency words may roll a wholly irregular
+suppletive root, English *eleven/twelve*, reused compositionally in larger numbers) and
+**irregular decade formation** (a base-10/12 language may give its tens their own suppletive
+roots — *twenty/thirty* rather than *two-ten/three-ten* — or, base 10 only, overlay a
+**vigesimal sub-base** grouping decades in twenties, French *quatre-vingts* = four-twenty and
+*quatre-vingt-dix* = four-twenty-ten), and **suppletion in basic vocabulary** (a few high-frequency words may roll a wholly irregular
 form in one inflectional cell — *go/went*, *person/people*, *I/me* — coined as an unrelated
 root and used verbatim there, only where the language actually marks that cell; the gloss
 still records the analysis, e.g. *go.1SG.PAST*), and a **loanword stratum** (a language may
@@ -197,8 +200,7 @@ lexicon through a sound change can also drift word *meanings* along attested pat
 *see → know*, *head → chief*, *die → sleep* — and a word is markedly likelier to drift once
 the change has made it homophonous with another, the classic homophony-avoidance link between
 sound change and meaning change; `Language.semantic_shift(rules, rng)` reports the drift, and
-the `generate` command shows a sample). Still to add: suppletive decades and sub-bases (French
-*quatre-vingts*).
+the `generate` command shows a sample).
 
 ### Advanced features (Stage 6)
 

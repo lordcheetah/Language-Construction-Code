@@ -160,6 +160,87 @@ def test_base_five_never_has_irregular_teens():
         assert system.irregular == {}  # restricted to base >= 10
 
 
+# --- Suppletive decades & vigesimal sub-base ----------------------------------------
+def test_suppletive_decades_override_regular_composition():
+    atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
+    s = NumeralSystem(
+        base=10, atoms=atoms,
+        base_word=Numeral(10, "ten", "ten"), square_word=Numeral(100, "hun", "hun"),
+        multiplier_before_base=True, units_before_tens=False, bare_base_for_one=True,
+        decades={20: Numeral(20, "twty", "twty"), 30: Numeral(30, "thty", "thty")},
+    )
+    assert s.number(20).roman == "twty"        # suppletive root, not "d2 ten"
+    assert s.number(24).roman == "twty d4"      # decade root + unit
+    assert s.number(30).roman == "thty"
+    assert s.number(40).roman == "d4 ten"       # 40 has no suppletive root -> regular
+    assert s.number(10).roman == "ten"          # the base word itself is unchanged
+    assert s.number(120).roman == "hun twty"    # the decade root is reused inside a hundred
+
+
+def test_vigesimal_subbase_groups_decades_in_twenties():
+    atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
+    s = NumeralSystem(
+        base=10, atoms=atoms,
+        base_word=Numeral(10, "ten", "ten"), square_word=Numeral(100, "hun", "hun"),
+        multiplier_before_base=True, units_before_tens=False, bare_base_for_one=True,
+        score_word=Numeral(20, "score", "score"),
+    )
+    assert s.number(20).roman == "score"          # one score
+    assert s.number(30).roman == "score ten"       # score + a leftover ten (odd decade)
+    assert s.number(80).roman == "d4 score"        # four-twenty  (French quatre-vingts)
+    assert s.number(90).roman == "d4 score ten"    # four-twenty-ten (quatre-vingt-dix)
+    assert s.number(70).roman == "d3 score ten"    # three-twenty-ten
+    assert s.number(84).roman == "d4 score d4"     # 4*20 + 4
+    assert s.number(10).roman == "ten"             # sub-ten is still just the base word
+    assert s.number(190).roman == "hun d4 score ten"  # scores recurse correctly inside hundreds
+
+
+def test_vigesimal_subbase_respects_units_before_tens():
+    atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
+    s = NumeralSystem(
+        base=10, atoms=atoms,
+        base_word=Numeral(10, "ten", "ten"), square_word=Numeral(100, "hun", "hun"),
+        multiplier_before_base=True, units_before_tens=True, bare_base_for_one=True,
+        score_word=Numeral(20, "score", "score"),
+    )
+    # units-first: the unit precedes the whole decade block (leftover ten stays with the score)
+    assert s.number(95).roman == "d5 d4 score ten"
+
+
+def test_generated_suppletive_decades_are_distinct_roots():
+    lexicon, phono, _, romanizer = _materials(0)  # build materials once; re-roll numerals cheaply
+    for r in range(200):
+        system = build_numerals(lexicon, phono, random.Random(r), romanizer=romanizer, base=10)
+        if system.decades:
+            assert system.base in (10, 12)
+            assert system.score_word is None  # mutually exclusive with the vigesimal sub-base
+            assert set(system.decades) == {t * system.base for t in range(2, system.base)}
+            for value, num in system.decades.items():
+                assert system.number(value).roman == num.roman  # used directly
+            return
+    raise AssertionError("no suppletive-decade system in 200 rolls (unexpected)")
+
+
+def test_generated_vigesimal_subbase_is_base_ten_and_scores():
+    lexicon, phono, _, romanizer = _materials(0)
+    for r in range(200):
+        system = build_numerals(lexicon, phono, random.Random(r), romanizer=romanizer, base=10)
+        if system.score_word is not None:
+            assert system.base == 10 and not system.decades
+            assert system.score_word.roman in system.number(80).roman   # four-twenty, not eight-ten
+            assert system.base_word.roman in system.number(90).roman     # +ten for the odd decade
+            return
+    raise AssertionError("no vigesimal sub-base in 200 rolls (unexpected)")
+
+
+def test_base_five_and_twenty_keep_regular_decades():
+    lexicon, phono, _, romanizer = _materials(0)
+    for base in (5, 20):
+        for r in range(20):
+            system = build_numerals(lexicon, phono, random.Random(r), romanizer=romanizer, base=base)
+            assert system.decades == {} and system.score_word is None
+
+
 def test_bare_base_false_keeps_the_one_in_hundreds():
     atoms = {v: Numeral(v, f"d{v}", f"d{v}") for v in range(1, 10)}
     s = NumeralSystem(
