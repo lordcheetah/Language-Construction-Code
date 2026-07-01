@@ -164,8 +164,10 @@ strategy: an inflected auxiliary carrying the verb's tense and agreement fronts 
 position before the subject — do-support — while the lexical verb appears in its bare form, so
 "the woman saw the bird" questions as *AUX.PAST.3SG woman see bird*; offered to VO languages only
 (a clause-initial tense-auxiliary is incoherent in a verb-final language) and gated off under
-verb-second, which forms its own verb-first questions). Non-topic oblique phrases are still placed
-clause-finally rather than by a positional parameter.
+verb-second, which forms its own verb-first questions), and an **oblique/adjunct position**
+(non-topic adpositional phrases are placed after the verb or before it by a harmonic parameter —
+postverbal/clause-final in VO, preverbal in OV, like the other head-direction correlates; kept
+clause-final under verb-second, which owns its own pre-verbal field).
 
 ### Advanced features (Stage 5)
 

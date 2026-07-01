@@ -1238,6 +1238,77 @@ def test_aux_inversion_in_an_isolating_language_renders_the_aux_as_particles():
     assert "AUX" in gloss and "PAST" in gloss and "see" in gloss
 
 
+# --- Oblique (adjunct) position -----------------------------------------------------
+_NEAR = lex("k u", "adposition", "near")
+
+
+def test_oblique_position_places_adjuncts_before_or_after_the_verb():
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(BIRD), "near")  # "near bird" = ku po
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp])
+    before = [w.ipa for w in
+              Linearizer(_params(WordOrder.SVO, oblique=Side.BEFORE), _system()).linearize(clause).words]
+    after = [w.ipa for w in
+             Linearizer(_params(WordOrder.SVO, oblique=Side.AFTER), _system()).linearize(clause).words]
+    assert before.index("ku") < before.index("ta")   # oblique precedes the verb (preverbal)
+    assert after.index("ta") < after.index("ku")      # oblique follows the verb (clause-final)
+
+
+def test_oblique_before_is_overridden_under_verb_second():
+    # a V2 main clause owns the pre-verbal field, so the oblique stays clause-final despite BEFORE
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp])
+    text = [w.ipa for w in Linearizer(
+        _params(WordOrder.SOV, oblique=Side.BEFORE, verb_second=True), _system()).linearize(clause).words]
+    assert text.index("ta") < text.index("ku")
+
+
+def test_a_topicalized_oblique_still_fronts_regardless_of_oblique_position():
+    # the topic fronts to clause-initial; only *non-topic* obliques obey the oblique parameter
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp], topic=pp)
+    out = Linearizer(_params(WordOrder.SVO, oblique=Side.BEFORE), _system()).linearize(clause)
+    assert [w.ipa for w in out.words][:2] == ["ku", "po"]  # the topic PP is clause-initial
+
+
+def test_preverbal_oblique_sits_between_object_and_verb_in_sov():
+    river = lex("r o", "noun", "river")
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(river), "near")  # near river = ku ro
+    clause = Clause(NounPhrase(WOMAN), SEE, NounPhrase(BIRD), obliques=[pp])
+    text = [w.ipa for w in
+            Linearizer(_params(WordOrder.SOV, oblique=Side.BEFORE), _system()).linearize(clause).words]
+    # S O PP V, verb-adjacent: woman bird [near river] see = mi pon ku ro ta
+    assert text.index("pon") < text.index("ku") < text.index("ta")
+
+
+def test_verb_initial_order_keeps_obliques_clause_final_even_with_before():
+    # a verb-initial language has no pre-verbal field, so BEFORE falls back to clause-final
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp])
+    text = [w.ipa for w in
+            Linearizer(_params(WordOrder.VSO, oblique=Side.BEFORE), _system()).linearize(clause).words]
+    assert text[0] == "ta"                          # the verb stays clause-initial
+    assert text.index("ta") < text.index("ku")      # the oblique is not fronted ahead of it
+
+
+def test_oblique_before_applies_in_an_embedded_clause_even_under_v2():
+    # V2 is main-clause only, so an embedded (matrix=False) clause obeys the oblique parameter
+    pp = AdpositionalPhrase(_NEAR, NounPhrase(BIRD), "near")
+    clause = Clause(NounPhrase(WOMAN), SEE, obliques=[pp])
+    lin = Linearizer(_params(WordOrder.SOV, oblique=Side.BEFORE, verb_second=True), _system())
+    inner = [t.ipa for t in lin._core_tokens(clause, matrix=False)]
+    assert inner.index("ku") < inner.index("ta")    # embedded: preverbal
+    main = [t.ipa for t in lin._core_tokens(clause, matrix=True)]
+    assert main.index("ta") < main.index("ku")       # main clause under V2: clause-final
+
+
+def test_oblique_position_correlates_with_word_order():
+    vo = sum(derive_correlates(WordOrder.SVO, random.Random(s)).oblique is Side.AFTER
+             for s in range(200))
+    ov = sum(derive_correlates(WordOrder.SOV, random.Random(s)).oblique is Side.AFTER
+             for s in range(200))
+    assert vo > ov  # VO languages postpose obliques (clause-final) more often than OV
+
+
 # --- Stem allomorphy flows through to the surface -----------------------------------
 def test_stem_allomorphy_surfaces_in_a_linearized_sentence():
     from conlang.morphology.paradigm import StemAlternation

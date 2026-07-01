@@ -174,15 +174,26 @@ class Linearizer:
                     order.remove(q_slot)
                     order.insert(0, q_slot)
 
+        # Non-topic obliques (adjuncts / PPs) sit after the verb (clause-final) or before it
+        # (preverbal), by the language's `oblique` parameter — postverbal harmonizes with VO,
+        # preverbal with OV. Preverbal drops them immediately before the verb (S O PP V —
+        # verb-adjacent, the common OV default). It needs a pre-verbal field to sit in, so it is
+        # skipped for a verb-initial order (nothing precedes the verb) and under V2 in a main
+        # clause (whose own positional logic owns that field); there they stay clause-final.
+        obliques = [tok for pp in clause.obliques if pp is not fronted_topic
+                    for tok in self._adpositional_phrase(pp)]
+        preverbal = (self.params.oblique is Side.BEFORE
+                     and self.params.basic_order.sequence[0] != "V"
+                     and not (matrix and self.params.verb_second))
+
         words: list[GlossedWord] = list(topic)  # the fronted topic, if any, comes first
         for slot in order:
+            if slot == "V" and preverbal:
+                words.extend(obliques)
             if slot in constituents:
                 words.extend(constituents[slot])
-        # The remaining obliques are placed clause-finally (a simplification); their *internal*
-        # adposition order does follow the language's pre/postposition parameter.
-        for pp in clause.obliques:
-            if pp is not fronted_topic:
-                words.extend(self._adpositional_phrase(pp))
+        if not preverbal:
+            words.extend(obliques)  # clause-final (postverbal)
         if aux_inversion:
             # The inflected auxiliary fronts to absolute clause-initial (before the subject).
             # derive_correlates only rolls AUX_INVERSION for VO languages, where a clause-initial

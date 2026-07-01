@@ -92,7 +92,8 @@ class SemanticShift:
 # v32: the concept inventory was expanded (new fields + colexification/derivation entries), changing the lexicon.
 # v33: a language may roll a loanword stratum (donor phonology + borrowed cultural vocab), shifting lexicon RNG.
 # v34: base-10/12 numerals may roll suppletive decades or a vigesimal sub-base (extra numeral RNG draws).
-GENERATOR_VERSION = 34
+# v35: syntax rolls an oblique-position parameter (an extra shared-RNG draw before lexicon/writing).
+GENERATOR_VERSION = 35
 
 # Person of the lexicon's PERSONAL pronouns, for subject-verb agreement and pro-drop
 # licensing. Demonstratives (this/that) are deliberately excluded: they are 3rd person by

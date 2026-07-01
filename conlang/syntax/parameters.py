@@ -117,6 +117,9 @@ class SyntaxParameters:
     suffixed_article: bool = False
     differential_object_marking: bool = False  # only a prominent (definite) object is case-marked
     verb_second: bool = False  # the finite verb sits second in a main clause (V2)
+    # Where non-topic oblique phrases (adjuncts / PPs) sit: AFTER the verb (clause-final, the
+    # VO default) or BEFORE it (preverbal, the OV default). Harmonic with head-direction.
+    oblique: Side = Side.AFTER
 
     def describe(self) -> str:
         wh = "fronted" if self.wh_fronting else "in situ"
@@ -133,7 +136,8 @@ class SyntaxParameters:
             f"  pro-drop:    {'yes' if self.pro_drop else 'no'} (null pronominal subjects)\n"
             f"  articles:    {self._articles_desc()}\n"
             f"  object case: {'differential (definite only)' if self.differential_object_marking else 'uniform'}\n"
-            f"  verb-second: {'yes (V2 main clauses)' if self.verb_second else 'no'}"
+            f"  verb-second: {'yes (V2 main clauses)' if self.verb_second else 'no'}\n"
+            f"  obliques:    {self.oblique.value} the verb (adjuncts / PPs)"
         )
 
     def _articles_desc(self) -> str:
@@ -221,6 +225,13 @@ def derive_correlates(
     # Verb-second is rare cross-linguistically (mostly Germanic); keep it uncommon.
     verb_second = rng.random() < 0.08
 
+    # Oblique phrases (adjuncts/PPs) harmonize strongly with head-direction (Dryer): postverbal
+    # (clause-final) in VO, preverbal in OV. Rolled last so it shifts no other syntax parameter.
+    if basic_order.is_vo:
+        oblique = lean(0.85, Side.AFTER, Side.BEFORE)
+    else:
+        oblique = lean(0.80, Side.BEFORE, Side.AFTER)
+
     return SyntaxParameters(
         basic_order=basic_order,
         adposition=adposition,
@@ -237,4 +248,5 @@ def derive_correlates(
         suffixed_article=suffixed_article,
         differential_object_marking=differential_object_marking,
         verb_second=verb_second,
+        oblique=oblique,
     )
