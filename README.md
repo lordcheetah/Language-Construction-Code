@@ -217,11 +217,20 @@ Development uses a **plan → execute → review** loop with Claude subagents: a
 architecture/plan pass, hands-on execution of each module, then a review subagent that
 critiques each module for both linguistic accuracy and code quality before it's accepted.
 
+## Install
+
+Pure Python, no runtime dependencies — install from PyPI:
+
+```bash
+pip install conlang          # the library + the `conlang` command
+pipx install conlang         # or an isolated CLI install (`conlang` on your PATH)
+```
+
+Developing the project or cutting a release? See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Quick start
 
 ```bash
-pip install -e .
-
 # Roll a COMPLETE language (all six stages) from one seed — the push-button entry point
 python -m conlang generate --seed 42
 python -m conlang generate --seed 42 --out out   # + write the native script as SVG
@@ -264,44 +273,6 @@ python -m conlang tutorial --demo --seed 7   # non-interactive walkthrough
 # Learn a generated language with spaced-repetition vocabulary drills (resumable)
 python -m conlang learn --seed 42
 ```
-
-## Install &amp; release
-
-The package is pure Python with no runtime dependencies, so it installs anywhere:
-
-```bash
-pip install .                       # or `pip install -e .` for a live, editable install
-pipx install .                      # isolated, puts the `conlang` command on your PATH
-```
-
-Build the release artifacts (a wheel and a source distribution) locally with:
-
-```bash
-python -m build                     # -> dist/conlang-<version>-py3-none-any.whl + .tar.gz
-pipx install dist/conlang-*.whl     # install the built wheel
-```
-
-Releases are cut by pushing a **version tag** (a normal branch push does *not* trigger one).
-Bump `version` in `pyproject.toml`, commit, then tag and push the tag:
-
-```bash
-git tag v0.1.0 && git push origin v0.1.0     # the tag — not just `git push` — is what releases
-```
-
-The [`.github/workflows/release.yml`](.github/workflows/release.yml) workflow then runs the
-test suite, checks the tag matches the project version, builds the wheel + sdist, attaches them
-to a **GitHub Release** (with generated notes), and publishes them to **PyPI**.
-
-PyPI upload uses OIDC [trusted publishing](https://docs.pypi.org/trusted-publishers/) — no API
-token or stored secret. One-time setup before the first release:
-
-1. On PyPI → *Account settings → Publishing*, add a **pending publisher** for project name
-   `conlang` with: owner = your GitHub user/org, repository = this repo's name, workflow =
-   `release.yml`, environment = `pypi`.
-2. In this repo → *Settings → Environments*, create an environment named `pypi`.
-
-(If the name `conlang` is ever taken on PyPI, rename `project.name` in `pyproject.toml` and the
-`url:` in the workflow to match.)
 
 ## Layout
 
